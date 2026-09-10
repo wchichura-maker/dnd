@@ -26,11 +26,36 @@ limit_smoothed = true
 [node name="GridMovementController" type="Node2D" parent="."]
 script = ExtResource("3_movement")
 
+[node name="CombatHUD" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="PanelContainer" parent="CombatHUD"]
+offset_left = 18.0
+offset_top = 18.0
+offset_right = 360.0
+offset_bottom = 168.0
+
+[node name="Margin" type="MarginContainer" parent="CombatHUD/Panel"]
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="CombatHUD/Panel/Margin"]
+
+[node name="Status" type="Label" parent="CombatHUD/Panel/Margin/VBox"]
+text = "Game Core: conectando..."
+
+[node name="StartCombat" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
+text = "Iniciar combate"
+
+[node name="EndTurn" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
+text = "Encerrar turno"
+
 [node name="DebugOverlay" type="CanvasLayer" parent="."]
 
 [node name="Label" type="Label" parent="DebugOverlay"]
 offset_left = 24.0
-offset_top = 20.0
+offset_top = 190.0
 theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
-theme_override_font_sizes/font_size = 16
-text = "D&D Online — Godot Foundation\nEntity Adapter: Kael (player-01)\nClique em uma casa para mover\nESC: sair"
+theme_override_font_sizes/font_size = 14
+text = "Clique em uma casa para mover\nESC: sair"
