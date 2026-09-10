@@ -1390,5 +1390,3 @@ function App() {
 }
 
 export default App;
-
-teste
