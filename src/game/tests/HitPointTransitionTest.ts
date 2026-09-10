@@ -6,7 +6,8 @@ import {
   applyDamage,
   applyHealing,
   getHitPointState,
-  hasCondition
+  hasCondition,
+  resolveDisabledStrenuousAction
 } from "../rules/ConditionRules";
 
 function assert(
@@ -105,6 +106,20 @@ export function runHitPointTransitionTests(): void {
     "Cura acima de 0 deve retornar a NORMAL."
   );
 
+  const dyingHealedPartially = applyHealing(
+    createCombatant(-3),
+    1
+  );
+
+  assert(
+    dyingHealedPartially.hp === -2,
+    "Cura parcial de Dying deve aumentar HP."
+  );
+  assert(
+    getHitPointState(dyingHealedPartially) === "STABLE",
+    "Qualquer cura de Dying que permaneça abaixo de 0 deve estabilizar."
+  );
+
   const stableNegative = createCombatant(
     -5,
     [{ type: "STABLE" }]
@@ -124,6 +139,42 @@ export function runHitPointTransitionTests(): void {
     "STABLE negativo deve permanecer STABLE enquanto continuar abaixo de 0."
   );
 
+  const disabledAction = createCombatant(0);
+  const afterDisabledAction =
+    resolveDisabledStrenuousAction(
+      disabledAction,
+      disabledAction
+    );
+
+  assert(
+    afterDisabledAction.hp === -1,
+    "Ação árdua de Disabled deve causar 1 dano ao final."
+  );
+  assert(
+    getHitPointState(afterDisabledAction) === "DYING",
+    "Ação árdua de Disabled deve levar a DYING."
+  );
+
+  const disabledHealingAction = createCombatant(0);
+  const healedDuringAction = applyHealing(
+    disabledHealingAction,
+    5
+  );
+  const afterHealingAction =
+    resolveDisabledStrenuousAction(
+      disabledHealingAction,
+      healedDuringAction
+    );
+
+  assert(
+    afterHealingAction.hp === 5,
+    "Ação que aumentou HP não deve aplicar o dano extra de Disabled."
+  );
+  assert(
+    getHitPointState(afterHealingAction) === "NORMAL",
+    "Cura durante ação deve deixar o personagem funcional."
+  );
+
   const dead = createCombatant(-9);
   const killed = applyDamage(dead, 1);
 
@@ -135,9 +186,11 @@ export function runHitPointTransitionTests(): void {
   console.log("✓ 0 HP = DISABLED");
   console.log("✓ -1 a -9 HP = DYING");
   console.log("✓ dano remove STABLE");
+  console.log("✓ cura parcial de DYING = STABLE");
   console.log("✓ cura até 0 = DISABLED");
   console.log("✓ cura acima de 0 = NORMAL");
-  console.log("✓ cura parcial mantém STABLE quando aplicável");
+  console.log("✓ ação árdua de DISABLED causa 1 dano");
+  console.log("✓ ação que aumenta HP não sofre dano extra");
   console.log("✓ -10 HP = DEAD");
   console.log("==============================");
   console.log("✓ TODOS OS TESTES DE TRANSIÇÃO DE HP PASSARAM");
