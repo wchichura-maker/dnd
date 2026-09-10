@@ -87,7 +87,6 @@ function getPresentationState() {
     playerId: PLAYER_ID,
     activeId,
     movementBudget,
-    // Kept for compatibility. Godot no longer renders reachable-cell highlights.
     reachablePositions: activeId === PLAYER_ID && player
       ? getReachablePositions(state.map, state.entities, player.position, movementBudget, player.id)
       : []
@@ -96,6 +95,28 @@ function getPresentationState() {
 
 function getSnapshot(): object {
   return { state: engine.getState(), presentation: getPresentationState(), actionLog };
+}
+
+function processAutomaticCombat(): Array<object> {
+  const events: Array<object> = [];
+  const before = engine.getState();
+  const result = engine.ensureAutomaticCombat();
+
+  if (result) {
+    appendActionLog({
+      source: "SYSTEM",
+      type: "AUTO_COMBAT_START",
+      actorId: null,
+      success: result.success,
+      message: result.message,
+      logMessages: engine.getState().logs.slice(before.logs.length),
+      turnAfter: getTurnDebug()
+    });
+  }
+
+  if (result?.success) events.push({ type: "AUTO_COMBAT_START", result });
+  if (engine.isCombatMode()) events.push(...runAiTurns());
+  return events;
 }
 
 function runAiTurns(): Array<object> {
@@ -130,7 +151,11 @@ const server = createServer(async (request, response) => {
   try {
     if (request.method === "OPTIONS") return sendJson(response, 204, {});
     if (request.method === "GET" && request.url === "/health") return sendJson(response, 200, { ok: true, service: "dnd-game-core" });
-    if (request.method === "GET" && request.url === "/state") return sendJson(response, 200, getSnapshot());
+
+    if (request.method === "GET" && request.url === "/state") {
+      processAutomaticCombat();
+      return sendJson(response, 200, getSnapshot());
+    }
 
     if (request.method === "POST" && request.url === "/reset") {
       engine = new GameEngineCombatExtensions(createInitialGameState());
@@ -157,21 +182,6 @@ const server = createServer(async (request, response) => {
       return sendJson(response, 200, { actionResult: { success: true, message: "Novo personagem criado no ponto inicial." }, ...getSnapshot() });
     }
 
-    if (request.method === "POST" && request.url === "/combat/start") {
-      const before = engine.getState();
-      const result = engine.startCombat();
-      appendActionLog({ source: "PLAYER", type: "START_COMBAT", actorId: PLAYER_ID, success: result.success, message: result.message, turnAfter: getTurnDebug(), logMessages: engine.getState().logs.slice(before.logs.length) });
-      const aiActions = result.success ? runAiTurns() : [];
-      return sendJson(response, result.success ? 200 : 400, { actionResult: result, aiActions, ...getSnapshot(), previousMode: before.mode });
-    }
-
-    if (request.method === "POST" && request.url === "/combat/end") {
-      const before = engine.getState();
-      const result = engine.endCombat();
-      appendActionLog({ source: "PLAYER", type: "END_COMBAT", actorId: PLAYER_ID, success: result.success, message: result.message, logMessages: engine.getState().logs.slice(before.logs.length), turnAfter: getTurnDebug() });
-      return sendJson(response, result.success ? 200 : 400, { actionResult: result, ...getSnapshot() });
-    }
-
     if (request.method === "POST" && request.url === "/turn/end") {
       const before = engine.getState();
       const actorId = getActiveId(before);
@@ -183,6 +193,7 @@ const server = createServer(async (request, response) => {
 
     if (request.method === "POST" && request.url === "/action") {
       const action = await readJsonBody(request) as GameAction;
+      const automaticEvents = processAutomaticCombat();
       const stateBeforeAction = engine.getState();
       const actorBeforeAction = stateBeforeAction.entities.find(entity => entity.id === action.actorId);
       let movementPath: { x: number; y: number }[] = [];
@@ -196,15 +207,17 @@ const server = createServer(async (request, response) => {
           if (!reachable.some(position => position.x === action.destination?.x && position.y === action.destination?.y)) {
             const rejection: ActionResult = { success: false, message: `Destino excede o deslocamento disponível de ${movementBudget} quadrado(s).` };
             recordAction(action, rejection, stateBeforeAction, movementPath, "PLAYER");
-            return sendJson(response, 400, { actionResult: rejection, ...getSnapshot(), movementPath: [] });
+            return sendJson(response, 400, { actionResult: rejection, autoCombatEvents: automaticEvents, ...getSnapshot(), movementPath: [] });
           }
         }
       }
 
       const result = engine.executeAction(action);
       recordAction(action, result, stateBeforeAction, movementPath, action.actorId === PLAYER_ID ? "PLAYER" : "SYSTEM");
+
+      const postActionAutomaticEvents = processAutomaticCombat();
       const aiActions = result.success ? runAiTurns() : [];
-      return sendJson(response, result.success ? 200 : 400, { actionResult: result, aiActions, ...getSnapshot(), movementPath: result.success ? movementPath : [] });
+      return sendJson(response, result.success ? 200 : 400, { actionResult: result, autoCombatEvents: [...automaticEvents, ...postActionAutomaticEvents], aiActions, ...getSnapshot(), movementPath: result.success ? movementPath : [] });
     }
 
     return sendJson(response, 404, { success: false, message: "Endpoint não encontrado." });
