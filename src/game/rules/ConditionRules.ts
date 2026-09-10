@@ -105,6 +105,81 @@ export function getAvailableMovement(
   return combatant.movement;
 }
 
+/**
+ * Aplica dano letal e resolve imediatamente as transições
+ * de estado dependentes de HP.
+ *
+ * Qualquer dano recebido por uma criatura STABLE remove
+ * a estabilidade antes de recalcular o estado de HP.
+ */
+export function applyDamage(
+  combatant: Combatant,
+  damage: number
+): Combatant {
+  if (damage <= 0) {
+    return combatant;
+  }
+
+  const withoutStable =
+    removeCondition(combatant, "STABLE");
+
+  return {
+    ...withoutStable,
+    hp: combatant.hp - damage
+  };
+}
+
+/**
+ * Aplica cura seguindo as transições de D&D 3.5.
+ *
+ * - Dying + qualquer cura que resulte em HP negativo:
+ *   torna-se Stable.
+ * - HP 0: fica Disabled/consciente.
+ * - HP > 0: fica Normal/funcional.
+ * - STABLE permanece enquanto o personagem continuar
+ *   abaixo de 0 HP.
+ */
+export function applyHealing(
+  combatant: Combatant,
+  healing: number
+): Combatant {
+  if (healing <= 0) {
+    return combatant;
+  }
+
+  const oldState =
+    getHitPointState(combatant);
+
+  const newHp =
+    Math.min(
+      combatant.maxHp,
+      combatant.hp + healing
+    );
+
+  const healed = {
+    ...combatant,
+    hp: newHp
+  };
+
+  if (newHp >= 0) {
+    return removeCondition(
+      healed,
+      "STABLE"
+    );
+  }
+
+  if (
+    oldState === "DYING"
+  ) {
+    return addCondition(
+      healed,
+      { type: "STABLE" }
+    );
+  }
+
+  return healed;
+}
+
 export function canAct(
   combatant: Combatant
 ): boolean {
@@ -178,6 +253,7 @@ export function isStable(
     getHitPointState(combatant) === "STABLE"
   );
 }
+
 export type StabilizationResult = {
   combatant: Combatant;
   stabilized: boolean;
@@ -189,7 +265,6 @@ export function resolveDyingState(
   combatant: Combatant,
   stabilizationRoll: number
 ): StabilizationResult {
-
   if (
     getHitPointState(combatant) !==
     "DYING"
@@ -206,42 +281,29 @@ export function resolveDyingState(
     stabilizationRoll >= 1 &&
     stabilizationRoll <= 10
   ) {
-
     const stabilizedCombatant =
       addCondition(
         combatant,
-        {
-          type: "STABLE"
-        }
+        { type: "STABLE" }
       );
 
     return {
-      combatant:
-        stabilizedCombatant,
-
+      combatant: stabilizedCombatant,
       stabilized: true,
-
       lostHitPoint: false,
-
       roll: stabilizationRoll
     };
   }
 
   const updatedCombatant = {
     ...combatant,
-
-    hp:
-      combatant.hp - 1
+    hp: combatant.hp - 1
   };
 
   return {
-    combatant:
-      updatedCombatant,
-
+    combatant: updatedCombatant,
     stabilized: false,
-
     lostHitPoint: true,
-
     roll: stabilizationRoll
   };
 }
