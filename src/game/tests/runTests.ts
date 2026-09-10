@@ -22,6 +22,10 @@ import {
   runSavingThrowTests
 } from "./SavingThrowTest";
 
+import {
+  runConditionStateTests
+} from "./ConditionStateTest";
+
 runRulesTests();
 
 runRangeRulesTests();
@@ -33,3 +37,5 @@ runFiveFootStepTests();
 runStabilizationTests();
 
 runSavingThrowTests();
+
+runConditionStateTests();
