@@ -7,6 +7,14 @@ import {
   isWithinWeaponRange
 } from "./rules/RangeRules";
 
+import {
+  isHelpless
+} from "./rules/CoupDeGraceRules";
+
+import {
+  isDead
+} from "./rules/ConditionRules";
+
 function distance(from: { x: number; y: number }, to: { x: number; y: number }) {
   return Math.max(
     Math.abs(to.x - from.x),
@@ -22,6 +30,11 @@ import type { GameMap } from "./types/Map";
  * A IA escolhe um único objetivo para o turno.
  * O movimento é calculado usando o deslocamento da própria ficha,
  * respeitando obstáculos e o custo das diagonais do motor.
+ *
+ * Prioridade ofensiva:
+ * 1. Golpe de Misericórdia contra alvo helpless ao alcance.
+ * 2. Ataque normal contra alvo ao alcance.
+ * 3. Aproximação usando o deslocamento disponível.
  */
 export function chooseAction(
   actor: Combatant,
@@ -30,13 +43,26 @@ export function chooseAction(
   map?: GameMap
 ) {
   const player = entities.find(
-    entity => entity.type === "PLAYER" && entity.hp > 0
+    entity =>
+      entity.type === "PLAYER" &&
+      !isDead(entity)
   );
 
   if (!player) {
     return {
       type: "WAIT" as const,
       actorId: actor.id
+    };
+  }
+
+  if (
+    isHelpless(player) &&
+    isWithinWeaponRange(actor, player)
+  ) {
+    return {
+      type: "COUP_DE_GRACE" as const,
+      actorId: actor.id,
+      targetId: player.id
     };
   }
 
