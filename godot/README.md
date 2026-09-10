@@ -1,50 +1,62 @@
 # D&D Online — Godot Client
 
-This directory contains the new Godot client foundation.
+This directory contains the Godot client foundation.
 
 ## Current scope
 
-The current vertical slice proves the client/runtime foundation and the first render-facing entity boundary:
+The current vertical slice proves the client/runtime foundation and the first authoritative movement bridge:
 
 - Godot 4 project configuration.
 - Main `Node2D` scene.
-- Prototype 2D map/grid renderer.
+- 2D map/grid renderer driven by Game Core state.
 - `Camera2D` following the player.
-- Keyboard input.
+- Mouse destination input.
 - `EntitySnapshot` render-facing data contract.
 - `GameEntityAdapter` boundary between game data and Godot nodes.
 - `EntityView` presentation node with name and HP bar.
-- Player entity initialized from the current TypeScript `playerCharacter` render-relevant state.
+- `GameCoreClient` HTTP transport.
+- TypeScript `GameCoreServer` exposing state and actions.
+- Authoritative `GameEngine` movement/pathfinding.
+- Godot tile-by-tile animation based on the path returned by Game Core.
 
 ## Architecture rule
 
-Godot presentation nodes do not own D&D rules. The adapter receives render-facing entity state and applies it to Godot nodes. The existing TypeScript Game Core remains the reference implementation for rules during this migration.
+Godot presentation and input nodes do not own D&D rules. Godot sends actions to the TypeScript Game Core and renders the resulting authoritative state/path. The existing TypeScript Game Core remains the source of truth during this migration.
 
-## Deliberate non-goals
+The temporary Godot-side pathfinding preview has been removed from the movement controller.
 
-The following are **not** migrated yet:
+## Local runtime bridge
 
-- D&D rules execution.
-- GameEngine execution inside Godot.
-- Combat.
-- Pathfinding.
-- Turn resources.
-- Inventory.
-- AI.
-- Multiplayer/networking.
+Start the TypeScript Game Core from the repository root:
+
+```bash
+npm install
+npm run game-core
+```
+
+The local transport listens on:
+
+`http://127.0.0.1:8787`
+
+Then open the `godot/` directory itself as the Godot 4.x project and run **F6/F5**.
+
+The Godot client requests the authoritative initial state and sends movement actions through the transport.
+
+## Controls
+
+- Left mouse button: request movement to a grid cell.
+- `ESC`: quit.
+
+## Current deliberate non-goals
+
+These are not implemented in the Godot presentation layer yet:
+
+- Combat UI.
+- Inventory UI.
+- AI presentation.
+- Multiplayer session transport.
 - Database/persistence.
 - Final art assets.
 - Final UI.
 
-## Run
-
-**Open the `godot/` directory itself as the Godot 4.x project.**
-
-Run the project with **F6/F5**.
-
-Controls in this foundation prototype:
-
-- `WASD` / arrow keys: move the temporary local player representation.
-- `ESC`: quit.
-
-The next milestone is to validate this entity adapter in the local Godot runtime before connecting authoritative movement from the TypeScript Game Core.
+D&D rules execution, pathfinding, movement validation, and game state remain in the TypeScript Game Core.
