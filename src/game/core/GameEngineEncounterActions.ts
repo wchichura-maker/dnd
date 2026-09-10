@@ -7,12 +7,11 @@ import { isDiplomacyEndCombatResult, resolveBluff, resolveDiplomacy, resolveInti
 import { resolveEncounterResponse } from "../rules/EncounterResolutionRules";
 import { GameEngineEncounterWithFlee } from "./GameEngineEncounterWithFlee";
 
-/** Contextual interaction layer for ENCOUNTER. */
 export class GameEngineEncounterActions extends GameEngineEncounterWithFlee {
   override executeAction(action: GameAction): ActionResult {
     if (action.type === "TALK") return this.executeTalk(action);
     if (action.type === "OBSERVE") return this.executeObserve(action);
-    if (["BLUFF", "DIPLOMACY", "INTIMIDATE", "NEGOTIATE", "ARREST"].includes(action.type) && this.isEncounterMode()) return this.executeEncounterInteraction(action);
+    if (["BLUFF", "DIPLOMACY", "INTIMIDATE", "NEGOTIATE", "ARREST", "SURRENDER"].includes(action.type) && this.isEncounterMode()) return this.executeEncounterInteraction(action);
     if (action.type === "ATTACK" && this.isEncounterMode()) {
       const combat = this.startCombat(this.getState().encounter?.participantIds);
       if (!combat.success) return combat;
@@ -31,11 +30,11 @@ export class GameEngineEncounterActions extends GameEngineEncounterWithFlee {
     if (!relationship) return { success: false, message: "Não existe relação definida entre ator e alvo." };
 
     if (action.type === "ARREST") return this.executeArrest(actor, target, relationship);
+    if (action.type === "SURRENDER") return this.executeSurrender(actor, target, relationship);
 
     if (action.type === "INTIMIDATE") {
       if (!canUseStandardAction(this.getState().turn)) return { success: false, message: "Intimidar exige uma ação padrão disponível." };
-      const roll = rollDie(20);
-      const targetRoll = rollDie(20);
+      const roll = rollDie(20); const targetRoll = rollDie(20);
       const result = resolveIntimidate(actor, target, roll, targetRoll);
       this.setState({ ...this.getState(), turn: consumeStandardAction(this.getState().turn) });
       if (result.success) this.setState({ ...this.getState(), relationships: this.getState().relationships.map(item => this.relationshipContains(item, actor.id, target.id) ? { ...item, fear: Math.min(100, item.fear + 20), hostile: false } : item) });
@@ -44,8 +43,7 @@ export class GameEngineEncounterActions extends GameEngineEncounterWithFlee {
     }
 
     if (!canUseFullRoundAction(this.getState().turn)) return { success: false, message: "Esta interação social exige uma ação de rodada completa." };
-    const roll = rollDie(20);
-    const targetRoll = rollDie(20);
+    const roll = rollDie(20); const targetRoll = rollDie(20);
 
     if (action.type === "BLUFF") {
       const result = resolveBluff(actor, target, roll, targetRoll);
@@ -57,20 +55,30 @@ export class GameEngineEncounterActions extends GameEngineEncounterWithFlee {
     if (action.type === "NEGOTIATE") {
       const result = resolveNegotiation(actor, target, roll, targetRoll);
       this.setState({ ...this.getState(), turn: consumeFullRoundAction(this.getState().turn) });
-      if (result.success) this.setState({ ...this.getState(), relationships: this.getState().relationships.map(item => this.relationshipContains(item, actor.id, target.id) ? { ...item, hostile: false, friendship: Math.min(100, item.friendship + 10), trust: Math.min(100, item.trust + 5) } : item) });
-      const response = resolveEncounterResponse("NEGOTIATION", result.success);
-      this.appendSocialLog(actor.name, target.name, `NEGOCIAÇÃO: ${result.total} contra ${result.targetTotal}. ${result.success ? "ACEITA" : "RECUSADA"}.`);
-      return { success: true, message: result.success ? `${actor.name} chegou a um acordo com ${target.name}.` : `${actor.name} não conseguiu negociar com ${target.name}.`, data: { phase: "ENCOUNTER", targetId: target.id, socialCheck: result, combatEnded: false, response: response.response, resolution: response.reason } };
+      if (result.success) {
+        this.setState({ ...this.getState(), relationships: this.getState().relationships.map(item => this.relationshipContains(item, actor.id, target.id) ? { ...item, hostile: false, friendship: Math.min(100, item.friendship + 10), trust: Math.min(100, item.trust + 5) } : item) });
+        const response = resolveEncounterResponse("NEGOTIATION", true);
+        const resolved = this.endEncounter(response.reason);
+        return { ...resolved, message: `${actor.name} chegou a um acordo com ${target.name}.`, data: { ...(resolved.data ?? {}), targetId: target.id, socialCheck: result, response: response.response, resolution: response.reason, combatEnded: false } };
+      }
+      const response = resolveEncounterResponse("NEGOTIATION", false);
+      this.appendSocialLog(actor.name, target.name, `NEGOCIAÇÃO: ${result.total} contra ${result.targetTotal}. RECUSADA.`);
+      return { success: true, message: `${actor.name} não conseguiu negociar com ${target.name}.`, data: { phase: "ENCOUNTER", targetId: target.id, socialCheck: result, combatEnded: false, response: response.response, resolution: response.reason } };
     }
 
     const initialAttitude = this.getDiplomacyAttitude(relationship);
     const result = resolveDiplomacy(actor, initialAttitude, roll, action.rushed === true);
     this.setState({ ...this.getState(), turn: consumeFullRoundAction(this.getState().turn) });
-    if (isDiplomacyEndCombatResult(result)) this.setState({ ...this.getState(), relationships: this.getState().relationships.map(item => this.relationshipContains(item, actor.id, target.id) ? { ...item, hostile: false, friendship: Math.min(100, item.friendship + 15), trust: Math.min(100, item.trust + 10) } : item) });
-    const accepted = result.newAttitude === "FRIENDLY" || result.newAttitude === "HELPFUL";
-    const response = resolveEncounterResponse("PERSUASION", accepted);
-    this.appendSocialLog(actor.name, target.name, `DIPLOMACIA: ${result.total} contra DC ${result.dc}. ${result.newAttitude}. ${accepted ? "ACEITA" : "RECUSADA"}.`);
-    return { success: true, message: accepted ? `${actor.name} alterou a atitude de ${target.name} para ${result.newAttitude}.` : `${actor.name} não conseguiu melhorar suficientemente a atitude de ${target.name}.`, data: { phase: "ENCOUNTER", targetId: target.id, socialCheck: { ...result, initialAttitude }, combatEnded: false, response: response.response, resolution: response.reason } };
+    const accepted = isDiplomacyEndCombatResult(result);
+    if (accepted) {
+      this.setState({ ...this.getState(), relationships: this.getState().relationships.map(item => this.relationshipContains(item, actor.id, target.id) ? { ...item, hostile: false, friendship: Math.min(100, item.friendship + 15), trust: Math.min(100, item.trust + 10) } : item) });
+      const response = resolveEncounterResponse("PERSUASION", true);
+      const resolved = this.endEncounter(response.reason);
+      return { ...resolved, message: `${actor.name} alterou a atitude de ${target.name} para ${result.newAttitude}.`, data: { ...(resolved.data ?? {}), targetId: target.id, socialCheck: { ...result, initialAttitude }, response: response.response, resolution: response.reason, combatEnded: false } };
+    }
+    const response = resolveEncounterResponse("PERSUASION", false);
+    this.appendSocialLog(actor.name, target.name, `DIPLOMACIA: ${result.total} contra DC ${result.dc}. ${result.newAttitude}. RECUSADA.`);
+    return { success: true, message: `${actor.name} não conseguiu melhorar suficientemente a atitude de ${target.name}.`, data: { phase: "ENCOUNTER", targetId: target.id, socialCheck: { ...result, initialAttitude }, combatEnded: false, response: response.response, resolution: response.reason } };
   }
 
   private executeArrest(actor: NonNullable<ReturnType<typeof this.getEntity>>, target: NonNullable<ReturnType<typeof this.getEntity>>, relationship: { hostile: boolean }): ActionResult {
@@ -80,11 +88,26 @@ export class GameEngineEncounterActions extends GameEngineEncounterWithFlee {
     this.setState({ ...this.getState(), turn: consumeStandardAction(this.getState().turn) });
     const response = resolveEncounterResponse("ARREST", accepted);
     if (accepted) {
-      this.setState({ ...this.getState(), relationships: this.getState().relationships.map(item => this.relationshipContains(item, actor.id, target.id) ? { ...item, hostile: false, allied: false } : item), logs: [...this.getState().logs, `${actor.name} prendeu ${target.name}.`, response.message] });
-    } else {
-      this.appendSocialLog(actor.name, target.name, `PRISÃO recusada: ${target.name} resiste.`);
+      this.setState({ ...this.getState(), relationships: this.getState().relationships.map(item => this.relationshipContains(item, actor.id, target.id) ? { ...item, hostile: false, allied: false } : item) });
+      const resolved = this.endEncounter(response.reason);
+      return { ...resolved, message: `${target.name} foi preso.`, data: { ...(resolved.data ?? {}), targetId: target.id, response: response.response, resolution: response.reason, combatEnded: false } };
     }
-    return { success: true, message: accepted ? `${target.name} foi preso.` : `${target.name} recusou a prisão e resistiu.`, data: { phase: "ENCOUNTER", targetId: target.id, response: response.response, resolution: response.reason, combatEnded: false } };
+    this.appendSocialLog(actor.name, target.name, `PRISÃO recusada: ${target.name} resiste.`);
+    const combat = this.startCombat(this.getState().encounter?.participantIds);
+    return { success: true, message: `${target.name} recusou a prisão e resistiu. O conflito escalou para combate.`, data: { phase: combat.success ? "COMBAT" : "ENCOUNTER", targetId: target.id, response: response.response, resolution: response.reason, combatEnded: false, escalated: combat.success } };
+  }
+
+  private executeSurrender(actor: NonNullable<ReturnType<typeof this.getEntity>>, target: NonNullable<ReturnType<typeof this.getEntity>>, relationship: { hostile: boolean }): ActionResult {
+    if (!canUseFullRoundAction(this.getState().turn)) return { success: false, message: "Rendição exige uma ação de rodada completa." };
+    this.setState({ ...this.getState(), turn: consumeFullRoundAction(this.getState().turn) });
+    const accepted = !relationship.hostile;
+    const response = resolveEncounterResponse("SURRENDER", accepted);
+    if (!accepted) {
+      this.appendSocialLog(actor.name, target.name, `RENDIÇÃO recusada por ${target.name}.`);
+      return { success: true, message: `${target.name} recusou a rendição.`, data: { phase: "ENCOUNTER", targetId: target.id, response: response.response, resolution: response.reason, combatEnded: false } };
+    }
+    const resolved = this.endEncounter(response.reason);
+    return { ...resolved, message: `${actor.name} se rendeu a ${target.name}.`, data: { ...(resolved.data ?? {}), targetId: target.id, response: response.response, resolution: response.reason, combatEnded: false } };
   }
 
   private executeTalk(action: GameAction): ActionResult {
