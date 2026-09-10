@@ -50,15 +50,19 @@ text = "Alvo: nenhum"
 
 [node name="StartCombat" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
 text = "Iniciar combate"
+flat = true
 
 [node name="Attack" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
 text = "Atacar alvo"
+flat = true
 
 [node name="CoupDeGrace" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
 text = "Golpe de Misericórdia"
+flat = true
 
 [node name="EndTurn" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
 text = "Encerrar turno"
+flat = true
 
 [node name="ActionLog" type="Label" parent="CombatHUD/Panel/Margin/VBox"]
 custom_minimum_size = Vector2(0, 280)
@@ -100,6 +104,8 @@ horizontal_alignment = 1
 
 [node name="Spectator" type="Button" parent="DeathOverlay/Center/VBox"]
 text = "Continuar como espectador"
+flat = true
 
 [node name="NewCharacter" type="Button" parent="DeathOverlay/Center/VBox"]
 text = "Criar novo personagem"
+flat = true
