@@ -62,6 +62,16 @@ function getSnapshot(): object {
   };
 }
 
+function sendActionResult(
+  response: ServerResponse,
+  result: ReturnType<GameEngine["startCombat"]>
+): void {
+  sendJson(response, result.success ? 200 : 400, {
+    actionResult: result,
+    ...getSnapshot()
+  });
+}
+
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
 
@@ -101,6 +111,24 @@ const server = createServer(async (request, response) => {
     if (request.method === "POST" && request.url === "/reset") {
       engine = new GameEngine(createInitialGameState());
       sendJson(response, 200, getSnapshot());
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/combat/start") {
+      const result = engine.startCombat();
+      sendActionResult(response, result);
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/combat/end") {
+      const result = engine.endCombat();
+      sendActionResult(response, result);
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/turn/end") {
+      const result = engine.endTurn();
+      sendActionResult(response, result);
       return;
     }
 
