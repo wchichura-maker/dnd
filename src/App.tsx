@@ -514,16 +514,28 @@ function App() {
    */
 
   const handleMovementAnimationComplete =
+  useCallback(
     (entityId: string) => {
 
       setMovementPaths(current => {
-        const next = { ...current };
+
+        const next = {
+          ...current
+        };
+
         delete next[entityId];
+
         return next;
       });
 
-      handleAnimationComplete(entityId);
-    };
+      handleAnimationComplete(
+        entityId
+      );
+    },
+    [
+      handleAnimationComplete
+    ]
+  );
 
 
   /*
