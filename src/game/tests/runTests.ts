@@ -43,6 +43,10 @@ import {
 } from "./CoupDeGraceIntegrationTest";
 
 import {
+  runCombatResolutionTests
+} from "./CombatResolutionTest";
+
+import {
   runAITests
 } from "./AITest";
 
@@ -67,5 +71,7 @@ runHitPointTransitionTests();
 runCoupDeGraceTests();
 
 runCoupDeGraceIntegrationTests();
+
+runCombatResolutionTests();
 
 runAITests();
