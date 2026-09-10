@@ -5,10 +5,10 @@ extends Node
 
 class_name GameEntityAdapter
 
-const TILE_SIZE := 48.0
+const TILE_SIZE: float = 48.0
 
 func bind_entity(node: Node2D, snapshot: EntitySnapshot) -> EntityView:
-	var view := node.get_node_or_null("EntityView") as EntityView
+	var view: EntityView = node.get_node_or_null("EntityView") as EntityView
 	if view == null:
 		view = EntityView.new()
 		view.name = "EntityView"
