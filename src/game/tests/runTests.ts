@@ -30,6 +30,10 @@ import {
   runDisabledStateTests
 } from "./DisabledStateTest";
 
+import {
+  runHitPointTransitionTests
+} from "./HitPointTransitionTest";
+
 runRulesTests();
 
 runRangeRulesTests();
@@ -45,3 +49,5 @@ runSavingThrowTests();
 runConditionStateTests();
 
 runDisabledStateTests();
+
+runHitPointTransitionTests();
