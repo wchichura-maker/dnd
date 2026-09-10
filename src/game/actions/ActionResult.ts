@@ -16,6 +16,20 @@ export type ActionResult = {
     damageRoll?: number;
     fortitudeRoll?: number;
     fortitude?: { bonus: number; total: number; dc: number; success: boolean };
+    socialCheck?: {
+      skill: "BLUFF" | "DIPLOMACY" | "INTIMIDATE";
+      roll: number;
+      bonus: number;
+      total: number;
+      targetRoll?: number;
+      targetBonus?: number;
+      targetTotal?: number;
+      dc?: number;
+      success: boolean;
+      margin: number;
+      initialAttitude?: string;
+      newAttitude?: string;
+    };
     opportunityAttacks?: Array<{
       attackerId: string;
       targetId: string;
