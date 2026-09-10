@@ -1,4 +1,5 @@
 extends Node2D
+class_name PlayerController
 
 ## Presentation controller for the Godot entity.
 ## The authoritative movement decision will come from the Game Core transport.
