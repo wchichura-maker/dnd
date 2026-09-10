@@ -4,14 +4,13 @@ import { attack } from "../CombatRules";
 import { applyDamage, canAct, getHitPointState, isDead } from "../rules/ConditionRules";
 import { getArmorClass } from "../rules/DefenseRules";
 import { getCombatDistance } from "../rules/RangeRules";
+import { getCombatEndMessage } from "../rules/CombatResolutionRules";
 import { GameEngineCombatExtensions } from "./GameEngineCombatExtensions";
 
-/**
- * D&D 3.5: Delivering a coup de grace provokes attacks of opportunity
- * from threatening opponents. This wrapper keeps the existing combat
- * extension untouched and adds the missing pre-action AoO resolution.
- */
+/** D&D 3.5: delivering a coup de grace provokes attacks of opportunity. */
 export class GameEngineCombatExtensionsWithCoupAoO extends GameEngineCombatExtensions {
+  private lastCoupOpportunityAttacks: NonNullable<NonNullable<ActionResult["data"]>["opportunityAttacks"]> = [];
+
   override executeAction(action: GameAction): ActionResult {
     if (action.type !== "COUP_DE_GRACE") return super.executeAction(action);
 
@@ -19,21 +18,16 @@ export class GameEngineCombatExtensionsWithCoupAoO extends GameEngineCombatExten
     if (opportunity) return opportunity;
 
     const result = super.executeAction(action);
-    if (!result.success) return result;
-
-    const opportunityAttacks = (this.lastCoupOpportunityAttacks ?? []);
-    if (opportunityAttacks.length === 0) return result;
+    if (!result.success || this.lastCoupOpportunityAttacks.length === 0) return result;
 
     return {
       ...result,
       data: {
         ...(result.data ?? {}),
-        opportunityAttacks
+        opportunityAttacks: this.lastCoupOpportunityAttacks
       }
     };
   }
-
-  private lastCoupOpportunityAttacks: NonNullable<NonNullable<ActionResult["data"]>["opportunityAttacks"]> | null = null;
 
   private resolveCoupDeGraceOpportunityAttacks(actorId: string): ActionResult | null {
     this.lastCoupOpportunityAttacks = [];
@@ -41,8 +35,9 @@ export class GameEngineCombatExtensionsWithCoupAoO extends GameEngineCombatExten
     const actor = this.getEntity(actorId);
     if (!actor || !canAct(actor)) return null;
 
+    // Reuse the base extension's per-round AoO registry so a defender cannot
+    // make a second AoO during the same round.
     const used = (this as unknown as { opportunityAttacksUsed: Set<string> }).opportunityAttacksUsed;
-    const opportunityAttacks = this.lastCoupOpportunityAttacks;
 
     for (const defender of state.entities) {
       const currentActor = this.getEntity(actorId);
@@ -50,22 +45,22 @@ export class GameEngineCombatExtensionsWithCoupAoO extends GameEngineCombatExten
         return {
           success: false,
           message: `${actor.name} não pode concluir o Golpe de Misericórdia após o ataque de oportunidade.`,
-          data: { opportunityAttacks }
+          data: { opportunityAttacks: this.lastCoupOpportunityAttacks }
         };
       }
 
       if (defender.id === actorId || isDead(defender) || !canAct(defender)) continue;
       if (used.has(defender.id)) continue;
 
-      const relationship = state.relationships.find(item =>
+      const hostile = state.relationships.some(item =>
         ((item.entityAId === defender.id && item.entityBId === actorId) ||
           (item.entityAId === actorId && item.entityBId === defender.id)) && item.hostile
       );
-      if (!relationship) continue;
+      if (!hostile) continue;
 
       const weapon = defender.dnd.equipment.weapon;
       if (!weapon || !weapon.melee) continue;
-      if (getCombatDistance(defender, currentActor) > weapon.range * 5) continue;
+      if (getCombatDistance(defender, currentActor) > weapon.range) continue;
 
       used.add(defender.id);
       const attackResult = attack(defender, currentActor);
@@ -73,7 +68,7 @@ export class GameEngineCombatExtensionsWithCoupAoO extends GameEngineCombatExten
         ? applyDamage(currentActor, attackResult.damage)
         : currentActor;
 
-      opportunityAttacks.push({
+      this.lastCoupOpportunityAttacks.push({
         attackerId: defender.id,
         targetId: actorId,
         roll: attackResult.roll,
@@ -106,9 +101,14 @@ export class GameEngineCombatExtensionsWithCoupAoO extends GameEngineCombatExten
         return {
           success: false,
           message: combatEnded
-            ? `${currentActor.name} morreu pelo ataque de oportunidade. ${this.getCombatDeathMessage()}`
+            ? `${currentActor.name} morreu pelo ataque de oportunidade. ${getCombatEndMessage("DEATH")}`
             : `${currentActor.name} morreu pelo ataque de oportunidade e não pode realizar o Golpe de Misericórdia.`,
-          data: { opportunityAttacks, targetDied: true, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined }
+          data: {
+            opportunityAttacks: this.lastCoupOpportunityAttacks,
+            targetDied: true,
+            combatEnded,
+            combatEndReason: combatEnded ? "DEATH" : undefined
+          }
         };
       }
 
@@ -116,7 +116,11 @@ export class GameEngineCombatExtensionsWithCoupAoO extends GameEngineCombatExten
         return {
           success: false,
           message: `${updatedActor.name} ficou ${getHitPointState(updatedActor)} após o ataque de oportunidade e não pode realizar o Golpe de Misericórdia.`,
-          data: { opportunityAttacks, targetDied: false, targetState: getHitPointState(updatedActor) }
+          data: {
+            opportunityAttacks: this.lastCoupOpportunityAttacks,
+            targetDied: false,
+            targetState: getHitPointState(updatedActor)
+          }
         };
       }
     }
@@ -137,9 +141,5 @@ export class GameEngineCombatExtensionsWithCoupAoO extends GameEngineCombatExten
       }
     }
     return true;
-  }
-
-  private getCombatDeathMessage(): string {
-    return "O combate terminou.";
   }
 }
