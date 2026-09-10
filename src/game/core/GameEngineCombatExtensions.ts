@@ -12,6 +12,8 @@ import { attack } from "../CombatRules";
 import { getArmorClass } from "../rules/DefenseRules";
 import { getEntityAtPosition } from "../rules/OccupancyRules";
 import { rollD20, rollDice } from "../Dice";
+import type { CombatEndReason } from "../rules/CombatResolutionRules";
+import { getCombatEndMessage } from "../rules/CombatResolutionRules";
 
 export class GameEngineCombatExtensions extends GameEngine {
   private readonly opportunityAttacksUsed = new Set<string>();
@@ -24,6 +26,31 @@ export class GameEngineCombatExtensions extends GameEngine {
   override endCombat(): ActionResult {
     this.opportunityAttacksUsed.clear();
     return super.endCombat();
+  }
+
+  /**
+   * Encerramento explícito usado por sistemas de resolução de encontro.
+   * A decisão sobre blefe, persuasão, ameaça, fuga, prisão, rendição etc.
+   * pertence ao sistema que resolve a situação; todos convergem aqui.
+   */
+  resolveCombat(reason: CombatEndReason): ActionResult {
+    if (this.isExplorationMode()) {
+      return { success: false, message: "O jogo já está em exploração." };
+    }
+
+    const result = this.endCombat();
+    if (!result.success) return result;
+
+    this.setState({
+      ...this.getState(),
+      logs: [...this.getState().logs, getCombatEndMessage(reason)]
+    });
+
+    return {
+      ...result,
+      message: getCombatEndMessage(reason),
+      data: { combatEndReason: reason }
+    };
   }
 
   override endTurn(): ActionResult {
@@ -41,7 +68,41 @@ export class GameEngineCombatExtensions extends GameEngine {
       const opportunityResult = this.resolveOpportunityAttacksBeforeMove(action);
       if (opportunityResult) return opportunityResult;
     }
-    return super.executeAction(action);
+
+    const result = super.executeAction(action);
+
+    if (action.type === "ATTACK" && result.success && this.shouldEndCombatAfterDeath()) {
+      const combatResult = this.resolveCombat("DEATH");
+      return {
+        ...result,
+        message: `${result.message} ${combatResult.message}`,
+        data: {
+          ...(result.data ?? {}),
+          combatEnded: true,
+          combatEndReason: "DEATH"
+        }
+      };
+    }
+
+    return result;
+  }
+
+  /**
+   * Um combate termina automaticamente quando não resta nenhum par
+   * de combatentes vivos e hostis. Dying/Stable continuam no encontro;
+   * apenas DEAD deixa de ser um combatente vivo para esta finalidade.
+   */
+  private shouldEndCombatAfterDeath(): boolean {
+    const state = this.getState();
+    const living = state.entities.filter(entity => !isDead(entity));
+
+    for (let index = 0; index < living.length; index++) {
+      for (let otherIndex = index + 1; otherIndex < living.length; otherIndex++) {
+        if (this.isHostile(state, living[index].id, living[otherIndex].id)) return false;
+      }
+    }
+
+    return true;
   }
 
   private resolveOpportunityAttacksBeforeMove(action: GameAction): ActionResult | null {
@@ -109,10 +170,17 @@ export class GameEngineCombatExtensions extends GameEngine {
       });
 
       if (isDead(updatedActor)) {
+        let combatEnded = false;
+        if (this.shouldEndCombatAfterDeath()) {
+          this.resolveCombat("DEATH");
+          combatEnded = true;
+        }
         return {
           success: false,
-          message: `${actor.name} morreu por um ataque de oportunidade e não pode concluir o movimento.`,
-          data: { opportunityAttacks, targetDied: true }
+          message: combatEnded
+            ? `${actor.name} morreu por um ataque de oportunidade. ${getCombatEndMessage("DEATH")}`
+            : `${actor.name} morreu por um ataque de oportunidade e não pode concluir o movimento.`,
+          data: { opportunityAttacks, targetDied: true, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined }
         };
       }
     }
@@ -185,11 +253,11 @@ export class GameEngineCombatExtensions extends GameEngine {
       ]
     });
 
-    if (coupResult.targetDied && turnOrder.length <= 1) this.endCombat();
+    if (coupResult.targetDied && this.shouldEndCombatAfterDeath()) this.resolveCombat("DEATH");
     return {
       success: true,
       message: coupResult.targetDied ? `${target.name} morreu pelo Golpe de Misericórdia.` : `${target.name} sobreviveu ao Golpe de Misericórdia.`,
-      data: { damage, critical: true, targetId: target.id, targetDied: coupResult.targetDied, damageRoll, fortitudeRoll, fortitude: coupResult.fortitude }
+      data: { damage, critical: true, targetId: target.id, targetDied: coupResult.targetDied, damageRoll, fortitudeRoll, fortitude: coupResult.fortitude, combatEnded: coupResult.targetDied && this.isExplorationMode(), combatEndReason: coupResult.targetDied && this.isExplorationMode() ? "DEATH" : undefined }
     };
   }
 }
