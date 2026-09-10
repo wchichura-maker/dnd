@@ -12,8 +12,8 @@ import { attack } from "../CombatRules";
 import { getArmorClass } from "../rules/DefenseRules";
 import { getEntityAtPosition } from "../rules/OccupancyRules";
 import { rollD20, rollDice } from "../Dice";
-import { validateCharge, isStraightLinePath, getChargeMovement, validateWithdraw } from "../rules/CombatMovementRules";
-import { withdrawLeavesThreatenedSquare } from "../rules/WithdrawRules";
+import { validateCharge, isStraightLinePath, getChargeMovement, validateRun, getRunMovement } from "../rules/CombatMovementRules";
+import { getWithdrawAoOTransitions } from "../rules/WithdrawRules";
 import type { CombatEndReason } from "../rules/CombatResolutionRules";
 import { getCombatEndMessage } from "../rules/CombatResolutionRules";
 
@@ -107,6 +107,7 @@ export class GameEngineCombatExtensions extends GameEngine {
     if (action.type === "COUP_DE_GRACE") return this.executeCoupDeGrace(action);
     if (action.type === "CHARGE") return this.executeCharge(action);
     if (action.type === "WITHDRAW") return this.executeWithdraw(action);
+    if (action.type === "RUN") return this.executeRun(action);
     if (action.type === "MOVE") {
       const opportunityResult = this.resolveOpportunityAttacksBeforeMove(action);
       if (opportunityResult) return opportunityResult;
@@ -126,47 +127,95 @@ export class GameEngineCombatExtensions extends GameEngine {
     if (!actor) return { success: false, message: "Personagem não encontrado." };
     if (actor.id !== this.getActiveEntity()?.id) return { success: false, message: "Não é o turno desta entidade." };
     if (!canAct(actor)) return { success: false, message: `${actor.name} não pode realizar ações neste estado.` };
-    if (!canUseFullRoundAction(state.turn)) return { success: false, message: "Retirada requer uma ação de rodada completa disponível." };
+    if (!canUseFullRoundAction(state.turn)) return { success: false, message: "Retirada requer a ação de rodada completa disponível." };
     if (!action.destination) return { success: false, message: "Destino da retirada não informado." };
-
     const validation = validateWithdraw(actor);
     if (!validation.valid) return { success: false, message: validation.message };
     if (getEntityAtPosition(action.destination, state.entities, actor.id)) return { success: false, message: "Retirada bloqueada: a casa de destino está ocupada." };
-
     const pathResult = findPath(state.map, state.entities, actor.position, action.destination, actor.id);
     if (!pathResult) return { success: false, message: "Não existe caminho válido para a retirada." };
     if (pathResult.cost > validation.maxMovement) return { success: false, message: `Retirada excede o deslocamento máximo de ${validation.maxMovement} casas.` };
-
-    const steps = pathResult.path.length > 0 && pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y
-      ? pathResult.path
-      : [actor.position, ...pathResult.path];
-
+    if (pathResult.cost < 1) return { success: false, message: "A retirada exige deslocamento." };
+    const steps = pathResult.path.length > 0 && pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y ? pathResult.path : [actor.position, ...pathResult.path];
     const originalTurn = state.turn;
-    this.setState({ ...this.getState(), turn: { ...this.getState().turn, resources: { ...this.getState().turn.resources, movement: validation.maxMovement } } });
-    const opportunityResult = this.resolveOpportunityAttacksBeforeMove({ ...action, type: "WITHDRAW" }, true);
+    this.setState({ ...this.getState(), turn: { ...this.getState().turn, resources: { ...this.getState().turn.resources, movement: getWithdrawMovement(actor.movement) } } });
+    const opportunityResult = this.resolveOpportunityAttacksForPath(action.actorId, steps, getWithdrawAoOTransitions(steps));
     if (opportunityResult) {
       this.setState({ ...this.getState(), turn: originalTurn });
       return opportunityResult;
     }
-
     const movementResult = super.executeAction({ type: "MOVE", actorId: actor.id, destination: action.destination });
     if (!movementResult.success) {
       this.setState({ ...this.getState(), turn: originalTurn });
       return { success: false, message: `Retirada falhou: ${movementResult.message}` };
     }
+    const after = consumeFullRoundAction(this.getState().turn);
+    this.setState({ ...this.getState(), turn: after, logs: [...this.getState().logs, `${actor.name} realizou RETIRADA e moveu ${pathResult.cost} casas.`] });
+    return { success: true, message: `${actor.name} realizou uma RETIRADA.`, data: { withdraw: true, position: action.destination, distance: pathResult.cost } };
+  }
 
-    const turnAfterWithdraw = consumeFullRoundAction(this.getState().turn);
-    this.setState({
-      ...this.getState(),
-      turn: turnAfterWithdraw,
-      logs: [...this.getState().logs, `${actor.name} realizou RETIRADA e moveu ${pathResult.cost} casas. O primeiro quadrado abandonado foi protegido contra Ataques de Oportunidade.`]
-    });
+  private executeRun(action: GameAction): ActionResult {
+    const state = this.getState();
+    if (state.mode !== "COMBAT") return { success: false, message: "Corrida só pode ser usada em combate." };
+    const actor = this.getEntity(action.actorId);
+    if (!actor) return { success: false, message: "Personagem não encontrado." };
+    if (actor.id !== this.getActiveEntity()?.id) return { success: false, message: "Não é o turno desta entidade." };
+    if (!canAct(actor)) return { success: false, message: `${actor.name} não pode realizar ações neste estado.` };
+    if (!canUseFullRoundAction(state.turn)) return { success: false, message: "Corrida requer a ação de rodada completa disponível." };
+    if (!action.destination) return { success: false, message: "Destino da corrida não informado." };
+    const validation = validateRun(actor);
+    if (!validation.valid) return { success: false, message: validation.message };
+    if (getEntityAtPosition(action.destination, state.entities, actor.id)) return { success: false, message: "Corrida bloqueada: a casa de destino está ocupada." };
+    const pathResult = findPath(state.map, state.entities, actor.position, action.destination, actor.id);
+    if (!pathResult) return { success: false, message: "Não existe caminho válido para a corrida." };
+    if (pathResult.cost < 1) return { success: false, message: "A corrida exige deslocamento." };
+    if (pathResult.cost > validation.maxMovement) return { success: false, message: `Corrida excede o deslocamento máximo de ${validation.maxMovement} casas.` };
+    const steps = pathResult.path.length > 0 && pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y ? pathResult.path : [actor.position, ...pathResult.path];
+    if (!isStraightLinePath(steps)) return { success: false, message: "A corrida deve seguir uma linha reta." };
+    const originalTurn = state.turn;
+    this.setState({ ...this.getState(), turn: { ...this.getState().turn, resources: { ...this.getState().turn.resources, movement: getRunMovement(actor.movement) } } });
+    const opportunityResult = this.resolveOpportunityAttacksForPath(action.actorId, steps);
+    if (opportunityResult) {
+      this.setState({ ...this.getState(), turn: originalTurn });
+      return opportunityResult;
+    }
+    const movementResult = super.executeAction({ type: "MOVE", actorId: actor.id, destination: action.destination });
+    if (!movementResult.success) {
+      this.setState({ ...this.getState(), turn: originalTurn });
+      return { success: false, message: `Corrida falhou: ${movementResult.message}` };
+    }
+    const after = consumeFullRoundAction(this.getState().turn);
+    this.setState({ ...this.getState(), turn: after, logs: [...this.getState().logs, `${actor.name} realizou CORRIDA e moveu ${pathResult.cost} casas.`] });
+    return { success: true, message: `${actor.name} realizou uma CORRIDA.`, data: { run: true, position: action.destination, distance: pathResult.cost } };
+  }
 
-    return {
-      success: true,
-      message: `${actor.name} realizou uma RETIRADA e moveu ${pathResult.cost} casas sem provocar AoO no primeiro quadrado abandonado.`,
-      data: { withdraw: true, position: action.destination, distance: pathResult.cost }
-    };
+  private resolveOpportunityAttacksForPath(actorId: string, steps: Array<{ x: number; y: number }>, allowedTransitions?: Array<{ from: { x: number; y: number }; to: { x: number; y: number }; index: number }>): ActionResult | null {
+    const state = this.getState();
+    const actor = state.entities.find(entity => entity.id === actorId);
+    if (!actor || !canAct(actor)) return null;
+    const opportunityAttacks: NonNullable<NonNullable<ActionResult["data"]>["opportunityAttacks"]> = [];
+    for (const defender of state.entities) {
+      if (defender.id === actor.id || isDead(defender) || !canAct(defender)) continue;
+      if (this.opportunityAttacksUsed.has(defender.id)) continue;
+      if (!this.isHostile(state, defender.id, actor.id)) continue;
+      const weapon = defender.dnd.equipment.weapon;
+      if (!weapon || !weapon.melee) continue;
+      const transitions = allowedTransitions ?? steps.slice(0, -1).map((from, index) => ({ from, to: steps[index + 1], index }));
+      const provokes = transitions.some(transition => this.distance(defender.position, transition.from) <= weapon.range && this.distance(defender.position, transition.to) > weapon.range);
+      if (!provokes) continue;
+      this.opportunityAttacksUsed.add(defender.id);
+      const result = attack(defender, actor);
+      const newHp = result.hit ? actor.hp - result.damage : actor.hp;
+      const updatedActor = { ...actor, hp: newHp };
+      opportunityAttacks.push({ attackerId: defender.id, targetId: actor.id, roll: result.roll, attackBonus: result.attackBonus, total: result.total, critical: result.critical, hit: result.hit, damage: result.damage, hpBefore: actor.hp, hpAfter: newHp });
+      this.setState({ ...this.getState(), entities: this.getState().entities.map(entity => entity.id === actor.id ? updatedActor : entity), logs: [...this.getState().logs, `${defender.name} realizou um ATAQUE DE OPORTUNIDADE contra ${actor.name}.`, `D20: ${result.roll} + ${result.attackBonus} = ${result.total}.`, `CA de ${actor.name}: ${getArmorClass(actor)}.`, result.critical ? "CRÍTICO!" : "", result.hit ? `ACERTO. Dano: ${result.damage}. ${actor.name}: ${actor.hp} → ${newHp} HP.` : "ERRO.", `Estado de ${actor.name}: ${getHitPointState(updatedActor)}.`].filter(Boolean) });
+      if (isDead(updatedActor)) {
+        const combatEnded = this.shouldEndCombatAfterDeath();
+        if (combatEnded) this.resolveCombat("DEATH");
+        return { success: false, message: combatEnded ? `${actor.name} morreu por um ataque de oportunidade. ${getCombatEndMessage("DEATH")}` : `${actor.name} morreu por um ataque de oportunidade e não pode concluir o movimento.`, data: { opportunityAttacks, targetDied: true, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined } };
+      }
+    }
+    return null;
   }
 
   private executeCharge(action: GameAction): ActionResult {
@@ -212,9 +261,13 @@ export class GameEngineCombatExtensions extends GameEngine {
     const attackResult = attack(chargedActor, movedTarget, { attackBonus: 2 });
     const targetAfterAttack = attackResult.hit ? applyDamage(movedTarget, attackResult.damage) : movedTarget;
     const turnAfterCharge = consumeFullRoundAction(this.getState().turn);
-    const attackLog = [`${chargedActor.name} realizou uma INVESTIDA contra ${movedTarget.name}.`,`D20: ${attackResult.roll} + ${attackResult.attackBonus} = ${attackResult.total}.`,`CA de ${movedTarget.name}: ${attackResult.targetArmorClass}.`,attackResult.critical ? "CRÍTICO!" : "",attackResult.hit ? `ACERTO. Dano: ${attackResult.damage}. ${movedTarget.name}: ${movedTarget.hp} → ${targetAfterAttack.hp} HP.` : "ERRO.",`Estado de ${movedTarget.name}: ${getHitPointState(targetAfterAttack)}.`,`${chargedActor.name} recebe -2 na CA até o início do próximo turno.`].filter(Boolean);
+    const attackLog = [`${chargedActor.name} realizou uma INVESTIDA contra ${movedTarget.name}.`, `D20: ${attackResult.roll} + ${attackResult.attackBonus} = ${attackResult.total}.`, `CA de ${movedTarget.name}: ${attackResult.targetArmorClass}.`, attackResult.critical ? "CRÍTICO!" : "", attackResult.hit ? `ACERTO. Dano: ${attackResult.damage}. ${movedTarget.name}: ${movedTarget.hp} → ${targetAfterAttack.hp} HP.` : "ERRO.", `Estado de ${movedTarget.name}: ${getHitPointState(targetAfterAttack)}.`, `${chargedActor.name} recebe -2 na CA até o início do próximo turno.`].filter(Boolean);
     this.setState({ ...this.getState(), entities: this.getState().entities.map(entity => entity.id === targetAfterAttack.id ? targetAfterAttack : entity), turn: turnAfterCharge, logs: [...this.getState().logs, ...attackLog] });
-    if (isDead(targetAfterAttack)) { const combatEnded = this.shouldEndCombatAfterDeath(); if (combatEnded) this.resolveCombat("DEATH"); return { success: true, message: combatEnded ? `${movedTarget.name} morreu pela investida. ${getCombatEndMessage("DEATH")}` : `${movedTarget.name} morreu pela investida.`, data: { charge: true, chargeAttackBonus: 2, chargeAcPenalty: -2, position: action.destination, distance: pathResult.cost, damage: attackResult.damage, roll: attackResult.roll, attackBonus: attackResult.attackBonus, total: attackResult.total, targetDied: true, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined } }; }
+    if (isDead(targetAfterAttack)) {
+      const combatEnded = this.shouldEndCombatAfterDeath();
+      if (combatEnded) this.resolveCombat("DEATH");
+      return { success: true, message: combatEnded ? `${movedTarget.name} morreu pela investida. ${getCombatEndMessage("DEATH")}` : `${movedTarget.name} morreu pela investida.`, data: { charge: true, chargeAttackBonus: 2, chargeAcPenalty: -2, position: action.destination, distance: pathResult.cost, damage: attackResult.damage, roll: attackResult.roll, attackBonus: attackResult.attackBonus, total: attackResult.total, targetDied: true, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined } };
+    }
     return { success: true, message: `${chargedActor.name} realizou uma INVESTIDA contra ${movedTarget.name}. ${attackResult.hit ? `Acerto por ${attackResult.total} contra CA ${attackResult.targetArmorClass}, causando ${attackResult.damage} de dano.` : `Errou o ataque (${attackResult.total} contra CA ${attackResult.targetArmorClass}).`}`, data: { charge: true, chargeAttackBonus: 2, chargeAcPenalty: -2, position: action.destination, distance: pathResult.cost, damage: attackResult.damage, roll: attackResult.roll, attackBonus: attackResult.attackBonus, total: attackResult.total, targetId: movedTarget.id } };
   }
 
@@ -225,7 +278,7 @@ export class GameEngineCombatExtensions extends GameEngine {
     return true;
   }
 
-  private resolveOpportunityAttacksBeforeMove(action: GameAction, withdraw = false): ActionResult | null {
+  private resolveOpportunityAttacksBeforeMove(action: GameAction): ActionResult | null {
     const state = this.getState();
     if (state.mode !== "COMBAT" || !action.destination) return null;
     const actor = state.entities.find(entity => entity.id === action.actorId);
@@ -234,33 +287,14 @@ export class GameEngineCombatExtensions extends GameEngine {
     const pathResult = findPath(state.map, state.entities, actor.position, action.destination, actor.id);
     if (!pathResult || pathResult.cost > state.turn.resources.movement) return null;
     const steps = pathResult.path.length > 0 && pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y ? pathResult.path : [actor.position, ...pathResult.path];
-    const opportunityAttacks: NonNullable<NonNullable<ActionResult["data"]>["opportunityAttacks"]> = [];
-    for (const defender of state.entities) {
-      if (defender.id === actor.id || isDead(defender) || !canAct(defender)) continue;
-      if (this.opportunityAttacksUsed.has(defender.id)) continue;
-      if (!this.isHostile(state, defender.id, actor.id)) continue;
-      const weapon = defender.dnd.equipment.weapon;
-      if (!weapon || !weapon.melee) continue;
-      const provokes = steps.slice(0, -1).some((from, index) => {
-        const to = steps[index + 1];
-        const transitionIndex = index;
-        if (withdraw && transitionIndex === 0) return false;
-        return withdrawLeavesThreatenedSquare(defender, from, to, weapon.range, transitionIndex);
-      });
-      if (!provokes) continue;
-      this.opportunityAttacksUsed.add(defender.id);
-      const result = attack(defender, actor);
-      const newHp = result.hit ? actor.hp - result.damage : actor.hp;
-      const updatedActor = { ...actor, hp: newHp };
-      opportunityAttacks.push({ attackerId: defender.id, targetId: actor.id, roll: result.roll, attackBonus: result.attackBonus, total: result.total, critical: result.critical, hit: result.hit, damage: result.damage, hpBefore: actor.hp, hpAfter: newHp });
-      this.setState({ ...this.getState(), entities: this.getState().entities.map(entity => entity.id === actor.id ? updatedActor : entity), logs: [...this.getState().logs, `${defender.name} realizou um ATAQUE DE OPORTUNIDADE contra ${actor.name}.`, `D20: ${result.roll} + ${result.attackBonus} = ${result.total}.`, `CA de ${actor.name}: ${getArmorClass(actor)}.`, result.critical ? "CRÍTICO!" : "", result.hit ? `ACERTO. Dano: ${result.damage}. ${actor.name}: ${actor.hp} → ${newHp} HP.` : "ERRO.", `Estado de ${actor.name}: ${getHitPointState(updatedActor)}.`].filter(Boolean) });
-      if (isDead(updatedActor)) { let combatEnded = false; if (this.shouldEndCombatAfterDeath()) { this.resolveCombat("DEATH"); combatEnded = true; } return { success: false, message: combatEnded ? `${actor.name} morreu por um ataque de oportunidade. ${getCombatEndMessage("DEATH")}` : `${actor.name} morreu por um ataque de oportunidade e não pode concluir o movimento.`, data: { opportunityAttacks, targetDied: true, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined } }; }
-    }
-    return null;
+    return this.resolveOpportunityAttacksForPath(action.actorId, steps);
   }
 
   private distance(a: { x: number; y: number }, b: { x: number; y: number }): number {
-    const dx = Math.abs(a.x - b.x); const dy = Math.abs(a.y - b.y); const diagonal = Math.min(dx, dy); const straight = Math.max(dx, dy) - diagonal;
+    const dx = Math.abs(a.x - b.x);
+    const dy = Math.abs(a.y - b.y);
+    const diagonal = Math.min(dx, dy);
+    const straight = Math.max(dx, dy) - diagonal;
     return Math.floor(diagonal / 2) * 3 + (diagonal % 2) + straight;
   }
 
