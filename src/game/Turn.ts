@@ -11,6 +11,9 @@ import {
 export function createTurn(
   character: Combatant
 ): Turn {
+  const movement =
+    getAvailableMovement(character);
+
   return {
     characterId:
       character.id,
@@ -22,14 +25,17 @@ export function createTurn(
 
       freeActions: true,
 
-      fiveFootStepAvailable: true,
+      fiveFootStepAvailable:
+        !getAvailableMovement(character),
 
       hasMoved: false,
 
       hasTakenFiveFootStep: false,
 
-      movement:
-        getAvailableMovement(character)
+      movement,
+
+      disabled:
+        movement !== character.movement
     }
   };
 }
