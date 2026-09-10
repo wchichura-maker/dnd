@@ -46,6 +46,13 @@ export type ActionResources = {
    * na ação de movimento atual.
    */
   movement: number;
+
+  /**
+   * D&D 3.5: personagem disabled pode realizar
+   * somente uma ação de movimento OU uma ação padrão
+   * no turno, e se move à metade da velocidade.
+   */
+  disabled: boolean;
 };
 
 export type Turn = {
