@@ -25,8 +25,7 @@ export function createTurn(
 
       freeActions: true,
 
-      fiveFootStepAvailable:
-        !getAvailableMovement(character),
+      fiveFootStepAvailable: true,
 
       hasMoved: false,
 
