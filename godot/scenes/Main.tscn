@@ -48,10 +48,6 @@ text = "Game Core: conectando..."
 [node name="Target" type="Label" parent="CombatHUD/Panel/Margin/VBox"]
 text = "Alvo: nenhum"
 
-[node name="StartCombat" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
-text = "Iniciar combate"
-flat = true
-
 [node name="Attack" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
 text = "Atacar alvo"
 flat = true
