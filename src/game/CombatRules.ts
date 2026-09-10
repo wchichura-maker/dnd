@@ -17,6 +17,11 @@ import {
   getArmorClass
 } from "./rules/DefenseRules";
 
+export type AttackModifiers = {
+  attackBonus?: number;
+  targetArmorClass?: number;
+};
+
 export type AttackResult = {
   roll: number;
 
@@ -41,7 +46,8 @@ export type AttackResult = {
 
 export function attack(
   attacker: Combatant,
-  target: Combatant
+  target: Combatant,
+  modifiers: AttackModifiers = {}
 ): AttackResult {
   const weapon =
     attacker.dnd.equipment.weapon;
@@ -49,143 +55,64 @@ export function attack(
   if (!weapon) {
     return {
       roll: 0,
-
       attackBonus: 0,
-
       total: 0,
-
-      targetArmorClass:
-        getArmorClass(target),
-
+      targetArmorClass: getArmorClass(target) + (modifiers.targetArmorClass ?? 0),
       hit: false,
-
       criticalThreat: false,
-
       criticalConfirmed: false,
-
       critical: false,
-
       damage: 0,
-
       damageMultiplier: 1
     };
   }
 
-  const roll =
-    rollD20();
+  const roll = rollD20();
+  const attackBonus = getMeleeAttackBonus(attacker) + (modifiers.attackBonus ?? 0);
+  const total = roll + attackBonus;
+  const targetArmorClass = getArmorClass(target) + (modifiers.targetArmorClass ?? 0);
 
-  const attackBonus =
-    getMeleeAttackBonus(
-      attacker
-    );
+  const automaticMiss = roll === 1;
+  const automaticHit = roll === 20;
+  const criticalThreat = roll >= weapon.criticalRange;
+  const normalHit = !automaticMiss && (automaticHit || total >= targetArmorClass);
 
-  const total =
-    roll +
-    attackBonus;
+  let criticalConfirmed = false;
+  let critical = false;
 
-  const targetArmorClass =
-    getArmorClass(
-      target
-    );
-
-  const automaticMiss =
-    roll === 1;
-
-  const automaticHit =
-    roll === 20;
-
-  const criticalThreat =
-    roll >=
-    weapon.criticalRange;
-
-  const normalHit =
-    !automaticMiss &&
-    (
-      automaticHit ||
-      total >= targetArmorClass
-    );
-
-  let criticalConfirmed =
-    false;
-
-  let critical =
-    false;
-
-  if (
-    criticalThreat &&
-    normalHit
-  ) {
-    const confirmationRoll =
-      rollD20();
-
-    const confirmationTotal =
-      confirmationRoll +
-      attackBonus;
-
-    criticalConfirmed =
-      confirmationTotal >=
-      targetArmorClass;
-
-    critical =
-      criticalConfirmed;
+  if (criticalThreat && normalHit) {
+    const confirmationRoll = rollD20();
+    const confirmationTotal = confirmationRoll + attackBonus;
+    criticalConfirmed = confirmationTotal >= targetArmorClass;
+    critical = criticalConfirmed;
   }
 
-  const hit =
-    normalHit;
-
+  const hit = normalHit;
   let damage = 0;
-
   let damageMultiplier = 1;
 
   if (hit) {
-    const strengthModifier =
-      getStrengthModifier(
-        attacker
-      );
-
-    damage =
-      rollDice(
-        weapon.damageDice.count,
-        weapon.damageDice.sides
-      );
-
-    damage +=
-      strengthModifier;
-
-    damage =
-      Math.max(
-        1,
-        damage
-      );
+    const strengthModifier = getStrengthModifier(attacker);
+    damage = rollDice(weapon.damageDice.count, weapon.damageDice.sides);
+    damage += strengthModifier;
+    damage = Math.max(1, damage);
 
     if (critical) {
-      damageMultiplier =
-        weapon.criticalMultiplier;
-
-      damage *=
-        damageMultiplier;
+      damageMultiplier = weapon.criticalMultiplier;
+      damage *= damageMultiplier;
     }
   }
 
   return {
     roll,
-
     attackBonus,
-
     total,
-
     targetArmorClass,
-
     hit,
-
     criticalThreat,
-
     criticalConfirmed,
-
     critical,
-
     damage,
-
     damageMultiplier
   };
 }
