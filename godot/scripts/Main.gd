@@ -12,6 +12,7 @@ var game_core: GameCoreClient
 var entity_nodes: Dictionary[String, Node2D] = {}
 var selected_target_id: String = ""
 var latest_state: Dictionary = {}
+var latest_action_log: Array = []
 
 func _ready() -> void:
 	adapter = GameEntityAdapter.new()
@@ -45,9 +46,11 @@ func _on_core_state_received(snapshot: Dictionary) -> void:
 		return
 	var state := state_variant as Dictionary
 	latest_state = state
+	var action_log_variant: Variant = snapshot.get("actionLog", [])
+	latest_action_log = action_log_variant as Array if action_log_variant is Array else []
 	_apply_map_state(state)
 	_apply_entity_state(state)
-	_update_combat_hud(state)
+	_update_combat_hud(state, snapshot)
 	queue_redraw()
 
 func _apply_map_state(state: Dictionary) -> void:
@@ -189,7 +192,7 @@ func _on_action_resolved(action_result: Dictionary, _snapshot: Dictionary) -> vo
 	if not message.is_empty():
 		_set_debug_status("Game Core: %s" % message)
 
-func _update_combat_hud(state: Dictionary) -> void:
+func _update_combat_hud(state: Dictionary, snapshot: Dictionary) -> void:
 	var mode := str(state.get("mode", "EXPLORATION"))
 	var combat := state.get("combat", {}) as Dictionary
 	var turn_order := combat.get("turnOrder", []) as Array
@@ -205,15 +208,38 @@ func _update_combat_hud(state: Dictionary) -> void:
 			active_name = str(entity.get("name", active_id))
 		if str(entity.get("id", "")) == PLAYER_ID:
 			player_entity = entity
-	var movement := int(player_entity.get("movement", 0))
+	var presentation := snapshot.get("presentation", {}) as Dictionary
+	var movement_budget := int(presentation.get("movementBudget", 0))
 	var hp := int(player_entity.get("hp", 0))
 	var max_hp := int(player_entity.get("maxHp", 0))
-	$CombatHUD/Panel/Margin/VBox/Status.text = "Modo: %s\nTurno: %s\nKael: HP %d/%d  Movimento %d" % [mode, active_name if not active_name.is_empty() else "—", hp, max_hp, movement]
+	$CombatHUD/Panel/Margin/VBox/Status.text = "Modo: %s\nTurno: %s\nKael: HP %d/%d  Movimento %d" % [mode, active_name if not active_name.is_empty() else "—", hp, max_hp, movement_budget]
 	$CombatHUD/Panel/Margin/VBox/StartCombat.disabled = mode != "EXPLORATION"
 	$CombatHUD/Panel/Margin/VBox/Attack.disabled = mode != "COMBAT" or active_id != PLAYER_ID or selected_target_id.is_empty()
 	_update_coup_de_grace_button()
 	$CombatHUD/Panel/Margin/VBox/EndTurn.disabled = mode == "EXPLORATION" or active_id != PLAYER_ID
 	_update_target_label()
+	_update_action_log()
+
+func _update_action_log() -> void:
+	var label: Label = $CombatHUD/Panel/Margin/VBox/ActionLog
+	var lines: Array[String] = []
+	var start_index := maxi(0, latest_action_log.size() - 8)
+	for index in range(start_index, latest_action_log.size()):
+		var entry_variant: Variant = latest_action_log[index]
+		if not entry_variant is Dictionary:
+			continue
+		var entry := entry_variant as Dictionary
+		var source := str(entry.get("source", "SYSTEM"))
+		var action_type := str(entry.get("type", ""))
+		var success := bool(entry.get("success", false))
+		var message := str(entry.get("message", ""))
+		var turn_after_variant: Variant = entry.get("turnAfter", {})
+		var turn_text := ""
+		if turn_after_variant is Dictionary:
+			var turn_after := turn_after_variant as Dictionary
+			turn_text = " | M:%s A:%s MV:%s" % [str(turn_after.get("movement", "?")), str(turn_after.get("action", "?")), str(turn_after.get("moveAction", "?"))]
+		lines.append("[%s] %s %s%s\n%s" % ["OK" if success else "ERRO", source, action_type, turn_text, message])
+	label.text = "REGISTRO DE AÇÕES\n" + ("\n".join(lines) if not lines.is_empty() else "Nenhuma ação registrada.")
 
 func _is_selected_target_helpless() -> bool:
 	if selected_target_id.is_empty():
