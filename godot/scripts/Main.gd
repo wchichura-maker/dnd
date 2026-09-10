@@ -11,6 +11,7 @@ var movement_controller: GridMovementController
 var game_core: GameCoreClient
 var entity_nodes: Dictionary[String, Node2D] = {}
 var selected_target_id: String = ""
+var latest_state: Dictionary = {}
 
 func _ready() -> void:
 	adapter = GameEntityAdapter.new()
@@ -26,6 +27,7 @@ func _ready() -> void:
 	entity_nodes[PLAYER_ID] = player
 	$CombatHUD/Panel/Margin/VBox/StartCombat.pressed.connect(_on_start_combat)
 	$CombatHUD/Panel/Margin/VBox/Attack.pressed.connect(_on_attack)
+	$CombatHUD/Panel/Margin/VBox/CoupDeGrace.pressed.connect(_on_coup_de_grace)
 	$CombatHUD/Panel/Margin/VBox/EndTurn.pressed.connect(_on_end_turn)
 	_set_debug_status("Game Core: conectando...\nClique esquerdo: mover\nClique direito: selecionar alvo")
 	game_core.request_state()
@@ -42,6 +44,7 @@ func _on_core_state_received(snapshot: Dictionary) -> void:
 	if not state_variant is Dictionary:
 		return
 	var state := state_variant as Dictionary
+	latest_state = state
 	_apply_map_state(state)
 	_apply_entity_state(state)
 	_update_combat_hud(state)
@@ -152,6 +155,7 @@ func _select_target_at(world_position: Vector2) -> void:
 		if view:
 			view.selected = entity_id == selected_target_id
 	_update_target_label()
+	_update_coup_de_grace_button()
 
 func _update_target_label() -> void:
 	var label: Label = $CombatHUD/Panel/Margin/VBox/Target
@@ -169,6 +173,13 @@ func _on_attack() -> void:
 	if selected_target_id.is_empty():
 		return
 	game_core.request_action({"type": "ATTACK", "actorId": PLAYER_ID, "targetId": selected_target_id})
+
+func _on_coup_de_grace() -> void:
+	if selected_target_id.is_empty():
+		return
+	if not _is_selected_target_helpless():
+		return
+	game_core.request_action({"type": "COUP_DE_GRACE", "actorId": PLAYER_ID, "targetId": selected_target_id})
 
 func _on_end_turn() -> void:
 	game_core.end_turn()
@@ -200,8 +211,38 @@ func _update_combat_hud(state: Dictionary) -> void:
 	$CombatHUD/Panel/Margin/VBox/Status.text = "Modo: %s\nTurno: %s\nKael: HP %d/%d  Movimento %d" % [mode, active_name if not active_name.is_empty() else "—", hp, max_hp, movement]
 	$CombatHUD/Panel/Margin/VBox/StartCombat.disabled = mode != "EXPLORATION"
 	$CombatHUD/Panel/Margin/VBox/Attack.disabled = mode != "COMBAT" or active_id != PLAYER_ID or selected_target_id.is_empty()
+	_update_coup_de_grace_button()
 	$CombatHUD/Panel/Margin/VBox/EndTurn.disabled = mode == "EXPLORATION" or active_id != PLAYER_ID
 	_update_target_label()
+
+func _is_selected_target_helpless() -> bool:
+	if selected_target_id.is_empty():
+		return false
+	for entity_variant in latest_state.get("entities", []) as Array:
+		if not entity_variant is Dictionary:
+			continue
+		var entity := entity_variant as Dictionary
+		if str(entity.get("id", "")) != selected_target_id:
+			continue
+		var hp := int(entity.get("hp", 0))
+		if hp < 0:
+			return true
+		var conditions_variant: Variant = entity.get("conditions", [])
+		if conditions_variant is Array:
+			for condition_variant in conditions_variant as Array:
+				var condition := str(condition_variant).to_upper()
+				if condition in ["UNCONSCIOUS", "PARALYZED", "PETRIFIED", "HELPLESS"]:
+					return true
+		return false
+	return false
+
+func _update_coup_de_grace_button() -> void:
+	var button: Button = $CombatHUD/Panel/Margin/VBox/CoupDeGrace
+	var combat := latest_state.get("combat", {}) as Dictionary
+	var turn_order := combat.get("turnOrder", []) as Array
+	var current_index := int(combat.get("currentTurnIndex", 0))
+	var active_id := str(turn_order[current_index]) if current_index >= 0 and current_index < turn_order.size() else ""
+	button.disabled = str(latest_state.get("mode", "EXPLORATION")) != "COMBAT" or active_id != PLAYER_ID or not _is_selected_target_helpless()
 
 func _grid_to_world(grid_position: Vector2i) -> Vector2:
 	return Vector2(grid_position) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
