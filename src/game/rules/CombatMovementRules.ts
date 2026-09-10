@@ -1,5 +1,5 @@
 import type { Combatant } from "../entities/Combatant";
-import { findPath } from "./Pathfinding";
+import type { Position } from "../world/Position";
 
 export type CombatMovementAction = "CHARGE" | "WITHDRAW" | "RUN";
 
@@ -8,48 +8,53 @@ export type CombatMovementValidation = {
   message: string;
   maxMovement: number;
   requiresStraightPath: boolean;
-  provokesAoO: boolean;
+  isFullRoundAction: boolean;
 };
 
 /**
- * D&D 3.5 movement multiplier used by charge and withdraw.
- * Movement is expressed in the same grid-distance units used by the Core.
+ * D&D 3.5: charge allows movement up to twice the creature's speed.
  */
 export function getChargeMovement(speed: number): number {
   return speed * 2;
 }
 
+/**
+ * D&D 3.5: withdraw allows movement up to twice the creature's speed.
+ */
 export function getWithdrawMovement(speed: number): number {
   return speed * 2;
 }
 
+/**
+ * D&D 3.5: run allows movement up to four times the creature's speed.
+ */
 export function getRunMovement(speed: number): number {
   return speed * 4;
 }
 
 /**
- * A charge is a full-round action. The creature moves up to twice its speed
- * in a straight line and must end adjacent to the target. The starting square
- * can be left without provoking an AoO only when the movement is represented
- * by the charge rule itself; the charge still has the normal D&D restrictions.
+ * A charge must move at least 10 feet (two 5-foot grid squares) and follow
+ * a straight line. The final attack and all charge modifiers are resolved by
+ * the combat engine, not by this pure validation helper.
  */
 export function validateCharge(
   actor: Combatant,
-  target: Combatant,
-  map: Parameters<typeof findPath>[0],
-  entities: Combatant[]
+  target: Combatant
 ): CombatMovementValidation {
-  const speed = actor.movement;
-  const maxMovement = getChargeMovement(speed);
+  const maxMovement = getChargeMovement(actor.movement);
+  const dx = Math.abs(target.position.x - actor.position.x);
+  const dy = Math.abs(target.position.y - actor.position.y);
 
   if (target.id === actor.id) {
     return invalid("O alvo da investida deve ser outra criatura.", maxMovement);
   }
 
-  const dx = Math.abs(target.position.x - actor.position.x);
-  const dy = Math.abs(target.position.y - actor.position.y);
   if (Math.max(dx, dy) < 2) {
-    return invalid("A investida exige espaço para avançar pelo menos 3 metros.", maxMovement);
+    return invalid("A investida exige pelo menos 10 pés de deslocamento.", maxMovement);
+  }
+
+  if (maxMovement < 2) {
+    return invalid("A criatura não possui deslocamento suficiente para realizar uma investida.", maxMovement);
   }
 
   return {
@@ -57,38 +62,68 @@ export function validateCharge(
     message: "Investida válida.",
     maxMovement,
     requiresStraightPath: true,
-    provokesAoO: false
+    isFullRoundAction: true
   };
 }
 
 /**
- * Withdraw is a full-round action. The first square exited is not subject to
- * an AoO from an opponent that threatens that square; movement after that
- * square follows the normal threat rules.
+ * Withdraw is a full-round action. The first square exited is treated specially
+ * by the AoO system: opponents do not get an AoO for leaving that square.
+ * Subsequent threatened squares use the normal AoO rules.
  */
 export function validateWithdraw(actor: Combatant): CombatMovementValidation {
   return {
-    valid: true,
-    message: "Retirada válida.",
+    valid: actor.movement > 0,
+    message: actor.movement > 0 ? "Retirada válida." : "A criatura não possui deslocamento.",
     maxMovement: getWithdrawMovement(actor.movement),
     requiresStraightPath: false,
-    provokesAoO: false
+    isFullRoundAction: true
   };
 }
 
 /**
- * Run is a full-round action and allows movement up to four times speed in a
- * straight line. It does not represent a normal MOVE and therefore does not
- * consume a move action plus remaining movement.
+ * Run is a full-round action and uses four times the creature's speed.
+ * Movement still interacts with threatened squares through the normal AoO
+ * system. The Core will enforce the straight-line restriction when the path
+ * is resolved.
  */
 export function validateRun(actor: Combatant): CombatMovementValidation {
   return {
-    valid: true,
-    message: "Corrida válida.",
+    valid: actor.movement > 0,
+    message: actor.movement > 0 ? "Corrida válida." : "A criatura não possui deslocamento.",
     maxMovement: getRunMovement(actor.movement),
     requiresStraightPath: true,
-    provokesAoO: true
+    isFullRoundAction: true
   };
+}
+
+/**
+ * A straight-line grid path is valid when every step changes either one
+ * coordinate or both by exactly one. This helper deliberately does not check
+ * terrain/occupancy; those remain authoritative in Pathfinding.
+ */
+export function isStraightLinePath(path: Position[]): boolean {
+  if (path.length <= 1) return true;
+
+  const first = path[0];
+  const second = path[1];
+  const stepX = Math.sign(second.x - first.x);
+  const stepY = Math.sign(second.y - first.y);
+
+  if (stepX === 0 && stepY === 0) return false;
+
+  for (let index = 1; index < path.length; index++) {
+    const previous = path[index - 1];
+    const current = path[index];
+    if (
+      current.x - previous.x !== stepX ||
+      current.y - previous.y !== stepY
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function invalid(message: string, maxMovement: number): CombatMovementValidation {
@@ -97,6 +132,6 @@ function invalid(message: string, maxMovement: number): CombatMovementValidation
     message,
     maxMovement,
     requiresStraightPath: true,
-    provokesAoO: false
+    isFullRoundAction: true
   };
 }
