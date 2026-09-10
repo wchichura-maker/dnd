@@ -1,7 +1,7 @@
 extends Node
 
 ## Adapter boundary between game-state data and Godot presentation nodes.
-## It does not execute D&D rules or mutate the authoritative game state.
+## It does not execute D&D rules, mutate authoritative state, or own node transforms.
 
 class_name GameEntityAdapter
 
@@ -14,7 +14,9 @@ func bind_entity(node: Node2D, snapshot: EntitySnapshot) -> EntityView:
 		view.name = "EntityView"
 		node.add_child(view)
 
-	node.position = Vector2(snapshot.grid_position) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
+	# Transform synchronization is intentionally handled by Main/PlayerController.
+	# Updating node.position here would apply the authoritative destination while
+	# the presentation tween is still running, producing a visible bounce/snap.
 	view.apply_snapshot(snapshot)
 	return view
 
