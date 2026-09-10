@@ -123,6 +123,34 @@ const server = createServer(async (request, response) => {
         );
 
         movementPath = pathResult?.path ?? [];
+
+        if (action.type === "MOVE") {
+          const reachablePositions = getReachablePositions(
+            stateBeforeAction.map,
+            stateBeforeAction.entities,
+            actorBeforeAction.position,
+            actorBeforeAction.movement,
+            actorBeforeAction.id
+          );
+
+          const destinationIsReachable = reachablePositions.some(
+            position =>
+              position.x === action.destination?.x &&
+              position.y === action.destination?.y
+          );
+
+          if (!destinationIsReachable) {
+            sendJson(response, 400, {
+              actionResult: {
+                success: false,
+                message: `Destino excede o deslocamento máximo de ${actorBeforeAction.movement} quadrado(s).`
+              },
+              ...getSnapshot(),
+              movementPath: []
+            });
+            return;
+          }
+        }
       }
 
       const result = engine.executeAction(action);
@@ -131,7 +159,7 @@ const server = createServer(async (request, response) => {
       sendJson(response, result.success ? 200 : 400, {
         actionResult: result,
         ...snapshot,
-        movementPath
+        movementPath: result.success ? movementPath : []
       });
       return;
     }
