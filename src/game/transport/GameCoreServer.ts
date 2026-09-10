@@ -28,14 +28,8 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
 }
 
 function appendActionLog(entry: Record<string, unknown>): void {
-  actionLog.push({
-    timestamp: new Date().toISOString(),
-    ...entry
-  });
-
-  if (actionLog.length > MAX_ACTION_LOG_ENTRIES) {
-    actionLog = actionLog.slice(-MAX_ACTION_LOG_ENTRIES);
-  }
+  actionLog.push({ timestamp: new Date().toISOString(), ...entry });
+  if (actionLog.length > MAX_ACTION_LOG_ENTRIES) actionLog = actionLog.slice(-MAX_ACTION_LOG_ENTRIES);
 }
 
 function getActiveId(state = engine.getState()): string {
@@ -58,16 +52,11 @@ function getTurnDebug(state = engine.getState()): Record<string, unknown> {
   };
 }
 
-function recordAction(
-  action: GameAction,
-  result: ActionResult,
-  before: ReturnType<typeof engine.getState>,
-  movementPath: Array<{ x: number; y: number }>,
-  source: "PLAYER" | "AI" | "SYSTEM"
-): void {
+function recordAction(action: GameAction, result: ActionResult, before: ReturnType<typeof engine.getState>, movementPath: Array<{ x: number; y: number }>, source: "PLAYER" | "AI" | "SYSTEM"): void {
   const after = engine.getState();
   const actorBefore = before.entities.find(entity => entity.id === action.actorId);
   const actorAfter = after.entities.find(entity => entity.id === action.actorId);
+  const logMessages = after.logs.slice(before.logs.length);
 
   appendActionLog({
     source,
@@ -78,6 +67,7 @@ function recordAction(
     success: result.success,
     message: result.message,
     data: result.data ?? null,
+    logMessages,
     movementPath,
     positionBefore: actorBefore?.position ?? null,
     positionAfter: actorAfter?.position ?? null,
@@ -92,67 +82,40 @@ function getPresentationState() {
   const state = engine.getState();
   const player = state.entities.find(entity => entity.id === PLAYER_ID);
   const activeId = getActiveId(state);
-  const movementBudget = activeId === PLAYER_ID
-    ? state.turn.resources.movement
-    : 0;
-
+  const movementBudget = activeId === PLAYER_ID ? state.turn.resources.movement : 0;
   return {
     playerId: PLAYER_ID,
     activeId,
     movementBudget,
-    reachablePositions:
-      player && activeId === PLAYER_ID
-        ? getReachablePositions(
-            state.map,
-            state.entities,
-            player.position,
-            movementBudget,
-            player.id
-          )
-        : []
+    // Kept for compatibility. Godot no longer renders reachable-cell highlights.
+    reachablePositions: activeId === PLAYER_ID && player
+      ? getReachablePositions(state.map, state.entities, player.position, movementBudget, player.id)
+      : []
   };
 }
 
 function getSnapshot(): object {
-  return {
-    state: engine.getState(),
-    presentation: getPresentationState(),
-    actionLog
-  };
+  return { state: engine.getState(), presentation: getPresentationState(), actionLog };
 }
 
 function runAiTurns(): Array<object> {
   const aiActions: Array<object> = [];
   let guard = 0;
-
   while (engine.isCombatMode() && guard < 20) {
     const state = engine.getState();
     const active = engine.getActiveEntity();
     if (!active || active.controller !== "AI") break;
-
     const action = chooseAction(active, state.entities, state.relationships, state.map) as GameAction;
-    const movementPath = action.destination
-      ? findPath(state.map, state.entities, active.position, action.destination, active.id)?.path ?? []
-      : [];
+    const movementPath = action.destination ? findPath(state.map, state.entities, active.position, action.destination, active.id)?.path ?? [] : [];
     const result = engine.executeAction(action);
     recordAction(action, result, state, movementPath, "AI");
     aiActions.push({ action, result, movementPath });
-
     if (!result.success) break;
     const endResult = engine.endTurn();
-    appendActionLog({
-      source: "AI",
-      type: "END_TURN",
-      actorId: active.id,
-      success: endResult.success,
-      message: endResult.message,
-      data: endResult.data ?? null,
-      turnAfter: getTurnDebug()
-    });
+    appendActionLog({ source: "AI", type: "END_TURN", actorId: active.id, success: endResult.success, message: endResult.message, data: endResult.data ?? null, logMessages: engine.getState().logs.slice(state.logs.length), turnAfter: getTurnDebug() });
     if (!endResult.success) break;
     guard++;
   }
-
   return aiActions;
 }
 
@@ -166,53 +129,58 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 const server = createServer(async (request, response) => {
   try {
     if (request.method === "OPTIONS") return sendJson(response, 204, {});
-    if (request.method === "GET" && request.url === "/health") {
-      return sendJson(response, 200, { ok: true, service: "dnd-game-core" });
-    }
-    if (request.method === "GET" && request.url === "/state") {
-      return sendJson(response, 200, getSnapshot());
-    }
+    if (request.method === "GET" && request.url === "/health") return sendJson(response, 200, { ok: true, service: "dnd-game-core" });
+    if (request.method === "GET" && request.url === "/state") return sendJson(response, 200, getSnapshot());
+
     if (request.method === "POST" && request.url === "/reset") {
       engine = new GameEngineCombatExtensions(createInitialGameState());
       actionLog = [];
       appendActionLog({ source: "SYSTEM", type: "RESET", success: true, message: "Jogo reiniciado." });
       return sendJson(response, 200, getSnapshot());
     }
+
+    if (request.method === "POST" && request.url === "/player/respawn") {
+      const current = engine.getState();
+      const initial = createInitialGameState();
+      const initialPlayer = initial.entities.find(entity => entity.id === PLAYER_ID);
+      if (!initialPlayer) return sendJson(response, 500, { success: false, message: "Personagem inicial não encontrado." });
+
+      engine.setState({
+        ...current,
+        mode: "EXPLORATION",
+        entities: current.entities.map(entity => entity.id === PLAYER_ID ? { ...initialPlayer } : entity),
+        combat: { turnOrder: [], currentTurnIndex: 0, active: false },
+        turn: initial.turn,
+        logs: [...current.logs, `${initialPlayer.name} criou um novo personagem e retornou ao ponto inicial.`]
+      });
+      appendActionLog({ source: "PLAYER", type: "RESPAWN", actorId: PLAYER_ID, success: true, message: "Novo personagem criado no ponto inicial." });
+      return sendJson(response, 200, { actionResult: { success: true, message: "Novo personagem criado no ponto inicial." }, ...getSnapshot() });
+    }
+
     if (request.method === "POST" && request.url === "/combat/start") {
       const before = engine.getState();
       const result = engine.startCombat();
-      appendActionLog({
-        source: "PLAYER",
-        type: "START_COMBAT",
-        actorId: PLAYER_ID,
-        success: result.success,
-        message: result.message,
-        turnAfter: getTurnDebug()
-      });
+      appendActionLog({ source: "PLAYER", type: "START_COMBAT", actorId: PLAYER_ID, success: result.success, message: result.message, turnAfter: getTurnDebug(), logMessages: engine.getState().logs.slice(before.logs.length) });
       const aiActions = result.success ? runAiTurns() : [];
       return sendJson(response, result.success ? 200 : 400, { actionResult: result, aiActions, ...getSnapshot(), previousMode: before.mode });
     }
+
     if (request.method === "POST" && request.url === "/combat/end") {
+      const before = engine.getState();
       const result = engine.endCombat();
-      appendActionLog({ source: "PLAYER", type: "END_COMBAT", actorId: PLAYER_ID, success: result.success, message: result.message, turnAfter: getTurnDebug() });
+      appendActionLog({ source: "PLAYER", type: "END_COMBAT", actorId: PLAYER_ID, success: result.success, message: result.message, logMessages: engine.getState().logs.slice(before.logs.length), turnAfter: getTurnDebug() });
       return sendJson(response, result.success ? 200 : 400, { actionResult: result, ...getSnapshot() });
     }
+
     if (request.method === "POST" && request.url === "/turn/end") {
       const before = engine.getState();
       const actorId = getActiveId(before);
       const result = engine.endTurn();
-      appendActionLog({
-        source: "PLAYER",
-        type: "END_TURN",
-        actorId,
-        success: result.success,
-        message: result.message,
-        turnBefore: getTurnDebug(before),
-        turnAfter: getTurnDebug()
-      });
+      appendActionLog({ source: "PLAYER", type: "END_TURN", actorId, success: result.success, message: result.message, logMessages: engine.getState().logs.slice(before.logs.length), turnBefore: getTurnDebug(before), turnAfter: getTurnDebug() });
       const aiActions = result.success ? runAiTurns() : [];
       return sendJson(response, result.success ? 200 : 400, { actionResult: result, aiActions, ...getSnapshot() });
     }
+
     if (request.method === "POST" && request.url === "/action") {
       const action = await readJsonBody(request) as GameAction;
       const stateBeforeAction = engine.getState();
@@ -220,38 +188,15 @@ const server = createServer(async (request, response) => {
       let movementPath: { x: number; y: number }[] = [];
 
       if (actorBeforeAction && action.destination) {
-        movementPath = findPath(
-          stateBeforeAction.map,
-          stateBeforeAction.entities,
-          actorBeforeAction.position,
-          action.destination,
-          actorBeforeAction.id
-        )?.path ?? [];
-
+        movementPath = findPath(stateBeforeAction.map, stateBeforeAction.entities, actorBeforeAction.position, action.destination, actorBeforeAction.id)?.path ?? [];
         if (action.type === "MOVE") {
           const activeId = getActiveId(stateBeforeAction);
-          const movementBudget = activeId === action.actorId
-            ? stateBeforeAction.turn.resources.movement
-            : actorBeforeAction.movement;
-          const reachable = getReachablePositions(
-            stateBeforeAction.map,
-            stateBeforeAction.entities,
-            actorBeforeAction.position,
-            movementBudget,
-            actorBeforeAction.id
-          );
-
+          const movementBudget = activeId === action.actorId ? stateBeforeAction.turn.resources.movement : actorBeforeAction.movement;
+          const reachable = getReachablePositions(stateBeforeAction.map, stateBeforeAction.entities, actorBeforeAction.position, movementBudget, actorBeforeAction.id);
           if (!reachable.some(position => position.x === action.destination?.x && position.y === action.destination?.y)) {
-            const rejection: ActionResult = {
-              success: false,
-              message: `Destino excede o deslocamento disponível de ${movementBudget} quadrado(s).`
-            };
+            const rejection: ActionResult = { success: false, message: `Destino excede o deslocamento disponível de ${movementBudget} quadrado(s).` };
             recordAction(action, rejection, stateBeforeAction, movementPath, "PLAYER");
-            return sendJson(response, 400, {
-              actionResult: rejection,
-              ...getSnapshot(),
-              movementPath: []
-            });
+            return sendJson(response, 400, { actionResult: rejection, ...getSnapshot(), movementPath: [] });
           }
         }
       }
@@ -259,13 +204,9 @@ const server = createServer(async (request, response) => {
       const result = engine.executeAction(action);
       recordAction(action, result, stateBeforeAction, movementPath, action.actorId === PLAYER_ID ? "PLAYER" : "SYSTEM");
       const aiActions = result.success ? runAiTurns() : [];
-      return sendJson(response, result.success ? 200 : 400, {
-        actionResult: result,
-        aiActions,
-        ...getSnapshot(),
-        movementPath: result.success ? movementPath : []
-      });
+      return sendJson(response, result.success ? 200 : 400, { actionResult: result, aiActions, ...getSnapshot(), movementPath: result.success ? movementPath : [] });
     }
+
     return sendJson(response, 404, { success: false, message: "Endpoint não encontrado." });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido.";
@@ -274,6 +215,4 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`D&D Game Core listening on http://${HOST}:${PORT}`);
-});
+server.listen(PORT, HOST, () => console.log(`D&D Game Core listening on http://${HOST}:${PORT}`));
