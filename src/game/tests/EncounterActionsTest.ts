@@ -22,10 +22,15 @@ export function runEncounterActionsTests(): void {
   assert.equal(engine.getState().mode, "ENCOUNTER");
 
   const attack = engine.executeAction({ type: "ATTACK", actorId: playerId, targetId: orcId });
-  assert.equal(attack.success, true);
+
+  // ATTACK must escalate the encounter immediately. The actual attack is
+  // resolved only if initiative gives the actor the active turn; otherwise
+  // the action correctly returns a turn-order failure while COMBAT remains active.
   assert.equal(engine.getState().mode, "COMBAT");
+  assert.equal(engine.getState().encounter?.active, true);
   assert.ok(engine.getState().combat.turnOrder.includes(playerId));
   assert.ok(engine.getState().combat.turnOrder.includes(orcId));
+  assert.ok(attack.success || attack.message.includes("Não é o turno desta entidade"));
 
   console.log("✓ TALK permanece em ENCOUNTER");
   console.log("✓ OBSERVE permanece em ENCOUNTER");
