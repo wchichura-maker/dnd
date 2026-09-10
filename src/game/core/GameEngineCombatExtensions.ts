@@ -31,9 +31,7 @@ export class GameEngineCombatExtensions extends GameEngine {
     const lastIndex = before.combat.turnOrder.length - 1;
     const currentIndex = before.combat.currentTurnIndex;
     const result = super.endTurn();
-    if (result.success && lastIndex >= 0 && currentIndex >= lastIndex) {
-      this.opportunityAttacksUsed.clear();
-    }
+    if (result.success && lastIndex >= 0 && currentIndex >= lastIndex) this.opportunityAttacksUsed.clear();
     return result;
   }
 
@@ -56,12 +54,11 @@ export class GameEngineCombatExtensions extends GameEngine {
     const pathResult = findPath(state.map, state.entities, actor.position, action.destination, actor.id);
     if (!pathResult || pathResult.cost > state.turn.resources.movement) return null;
 
-    const steps = pathResult.path.length > 0 &&
-      pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y
+    const steps = pathResult.path.length > 0 && pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y
       ? pathResult.path
       : [actor.position, ...pathResult.path];
 
-    const opportunityAttacks: Array<Record<string, unknown>> = [];
+    const opportunityAttacks: NonNullable<NonNullable<ActionResult["data"]>["opportunityAttacks"]> = [];
 
     for (const defender of state.entities) {
       if (defender.id === actor.id || isDead(defender) || !canAct(defender)) continue;
