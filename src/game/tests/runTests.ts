@@ -51,6 +51,10 @@ import {
 } from "./SocialRulesTest";
 
 import {
+  runSocialCombatIntegrationTests
+} from "./SocialCombatIntegrationTest";
+
+import {
   runAITests
 } from "./AITest";
 
@@ -83,6 +87,7 @@ runCoupDeGraceTests();
 runCoupDeGraceIntegrationTests();
 runCombatResolutionTests();
 runSocialRulesTests();
+runSocialCombatIntegrationTests();
 runAITests();
 runCombatMovementTests();
 runWithdrawRulesTests();
