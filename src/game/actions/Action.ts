@@ -2,6 +2,7 @@ import type { EquipmentSlot } from "../inventory/EquipmentSlot";
 
 export type ActionType =
   | "MOVE"
+  | "FIVE_FOOT_STEP"
   | "ATTACK"
   | "EQUIP"
   | "UNEQUIP"

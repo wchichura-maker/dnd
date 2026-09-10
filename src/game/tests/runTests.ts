@@ -14,6 +14,10 @@ import {
   runFiveFootStepTests
 } from "./FiveFootStepTest";
 
+import {
+  runStabilizationTests
+} from "./StabilizationTest";
+
 runRulesTests();
 
 runRangeRulesTests();
@@ -21,3 +25,5 @@ runRangeRulesTests();
 runPathfindingTests();
 
 runFiveFootStepTests();
+
+runStabilizationTests();

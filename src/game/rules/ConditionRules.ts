@@ -164,3 +164,70 @@ export function isStable(
     getHitPointState(combatant) === "STABLE"
   );
 }
+export type StabilizationResult = {
+  combatant: Combatant;
+  stabilized: boolean;
+  lostHitPoint: boolean;
+  roll: number;
+};
+
+export function resolveDyingState(
+  combatant: Combatant,
+  stabilizationRoll: number
+): StabilizationResult {
+
+  if (
+    getHitPointState(combatant) !==
+    "DYING"
+  ) {
+    return {
+      combatant,
+      stabilized: false,
+      lostHitPoint: false,
+      roll: stabilizationRoll
+    };
+  }
+
+  if (
+    stabilizationRoll >= 1 &&
+    stabilizationRoll <= 10
+  ) {
+
+    const stabilizedCombatant =
+      addCondition(
+        combatant,
+        {
+          type: "STABLE"
+        }
+      );
+
+    return {
+      combatant:
+        stabilizedCombatant,
+
+      stabilized: true,
+
+      lostHitPoint: false,
+
+      roll: stabilizationRoll
+    };
+  }
+
+  const updatedCombatant = {
+    ...combatant,
+
+    hp:
+      combatant.hp - 1
+  };
+
+  return {
+    combatant:
+      updatedCombatant,
+
+    stabilized: false,
+
+    lostHitPoint: true,
+
+    roll: stabilizationRoll
+  };
+}

@@ -34,6 +34,7 @@ type GameMapProps = {
   movementRemaining: number;
   actionAvailable: boolean;
   fiveFootStepAvailable: boolean;
+  hasTakenFiveFootStep: boolean;
   isPlayerTurn: boolean;
   onTileClick: (x: number, y: number) => void;
   movementPaths?: Record<string, Position[]>;
@@ -157,6 +158,7 @@ export default function GameMap({
   movementRemaining,
   actionAvailable,
   fiveFootStepAvailable,
+  hasTakenFiveFootStep,
   isPlayerTurn,
   onTileClick,
   movementPaths = {},
@@ -200,7 +202,9 @@ export default function GameMap({
   const movementHighlightDistance =
     fiveFootStepMode
       ? 1
-      : movementRemaining;
+      : hasTakenFiveFootStep
+        ? 0
+        : movementRemaining;
 
   const reachablePositions =
     isPlayerTurn &&
@@ -231,7 +235,7 @@ export default function GameMap({
    * sendo feita pelo GameEngine.
    */
   const attackRange =
-    isPlayerTurn
+    isPlayerTurn && actionAvailable
       ? getWeaponRange(character)
       : 0;
 

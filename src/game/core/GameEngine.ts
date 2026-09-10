@@ -53,8 +53,7 @@ import {
   canMove,
   getHitPointState,
   isDead,
-  isDying,
-  addCondition
+  resolveDyingState
 } from "../rules/ConditionRules";
 
 import {
@@ -253,7 +252,14 @@ export class GameEngine {
 
       case "MOVE":
         return this.executeMove(
-          action
+          action,
+          false
+        );
+
+      case "FIVE_FOOT_STEP":
+        return this.executeMove(
+          action,
+          true
         );
 
 
@@ -698,93 +704,58 @@ export class GameEngine {
    */
 
   private processStartOfTurn(
-    entity: ReturnType<GameEngine["getEntity"]>
-  ): ReturnType<GameEngine["getEntity"]> {
+  entity: ReturnType<GameEngine["getEntity"]>
+): ReturnType<GameEngine["getEntity"]> {
 
-    if (!entity) {
-      return undefined;
-    }
+  if (!entity) {
+    return undefined;
+  }
 
+  /*
+   * DEAD não deveria chegar aqui,
+   * mas mantemos a proteção.
+   */
+
+  if (
+    isDead(entity)
+  ) {
+    return entity;
+  }
+
+  /*
+   * --------------------------------------------------
+   * DYING
+   * --------------------------------------------------
+   */
+
+  if (
+    getHitPointState(entity) ===
+    "DYING"
+  ) {
 
     /*
-     * DEAD não deveria chegar aqui, mas
-     * mantemos a proteção.
+     * D&D 3.5:
+     * 10% de chance de estabilizar.
      */
 
-    if (
-      isDead(entity)
-    ) {
-      return entity;
-    }
+    const stabilizationRoll =
+      rollDie(100);
 
+    const result =
+      resolveDyingState(
+        entity,
+        stabilizationRoll
+      );
 
     /*
      * --------------------------------------------------
-     * DYING
+     * ESTABILIZOU
      * --------------------------------------------------
      */
 
     if (
-      isDying(entity)
+      result.stabilized
     ) {
-
-      /*
-       * D&D 3.5:
-       * 10% de chance de estabilizar.
-       */
-
-      const stabilizationRoll =
-        rollDie(100);
-
-
-      if (
-        stabilizationRoll <= 10
-      ) {
-
-        const stabilized =
-          addCondition(
-            entity,
-            {
-              type: "STABLE",
-              sourceId:
-                "natural-stabilization"
-            }
-          );
-
-
-        this.state = {
-          ...this.state,
-
-          logs: [
-            ...this.state.logs,
-
-            `${entity.name} fez um teste de estabilização: ${stabilizationRoll}%.`,
-
-            `${entity.name} está ESTABILIZADO.`
-          ]
-        };
-
-
-        return stabilized;
-      }
-
-
-      /*
-       * Falhou:
-       * perde 1 HP.
-       */
-
-      const newHp =
-        entity.hp - 1;
-
-
-      const updatedEntity = {
-        ...entity,
-
-        hp:
-          newHp
-      };
-
 
       this.state = {
         ...this.state,
@@ -794,23 +765,36 @@ export class GameEngine {
 
           `${entity.name} fez um teste de estabilização: ${stabilizationRoll}%.`,
 
-          `${entity.name} falhou e perdeu 1 HP. ${entity.hp} → ${newHp} HP.`
+          `${entity.name} está ESTABILIZADO.`
         ]
       };
 
-
-      /*
-       * Se atingiu o limite de morte,
-       * será removido da iniciativa no processamento
-       * seguinte.
-       */
-
-      return updatedEntity;
+      return result.combatant;
     }
 
+    /*
+     * --------------------------------------------------
+     * FALHOU
+     * --------------------------------------------------
+     */
 
-    return entity;
+    this.state = {
+      ...this.state,
+
+      logs: [
+        ...this.state.logs,
+
+        `${entity.name} fez um teste de estabilização: ${stabilizationRoll}%.`,
+
+        `${entity.name} falhou e perdeu 1 HP. ${entity.hp} → ${result.combatant.hp} HP.`
+      ]
+    };
+
+    return result.combatant;
   }
+
+  return entity;
+}
 
 
   /*
@@ -853,7 +837,8 @@ export class GameEngine {
    */
 
   private executeMove(
-  action: GameAction
+  action: GameAction,
+  isFiveFootStep: boolean
 ): ActionResult {
 
   if (
@@ -890,31 +875,62 @@ export class GameEngine {
   }
 
   /*
-   * O 5-foot step é avaliado antes
-   * do movimento restante porque ele
-   * não consome deslocamento.
-   */
-  const isFiveFootStep =
-    canTakeFiveFootStep(
-      this.state.turn
-    );
+ * O tipo da ação determina se estamos
+ * executando movimento normal ou
+ * 5-foot step.
+ *
+ * MOVE:
+ * movimento normal usando o deslocamento
+ * disponível.
+ *
+ * FIVE_FOOT_STEP:
+ * exatamente 1 casa, sem consumir
+ * deslocamento.
+ */
+if (isFiveFootStep) {
 
   /*
-   * Movimento normal só pode começar
-   * se existir uma ação de movimento.
+   * O 5-foot step só pode acontecer
+   * depois que a ação padrão já foi
+   * utilizada.
    *
-   * Depois de um 5-foot step,
-   * canUseMoveAction() retorna false.
+   * Isso impede que o primeiro movimento
+   * do turno seja interpretado como
+   * 5-foot step.
    */
-  const canStartMovement =
-    isFiveFootStep
-      ? true
-      : canUseMoveAction(
-          this.state.turn
-        );
+  if (
+    this.state.turn.resources.action
+  ) {
+    return {
+      success: false,
+      message:
+        "O 5-foot step só pode ser realizado após a ação padrão."
+    };
+  }
 
   if (
-    !canStartMovement
+    !canTakeFiveFootStep(
+      this.state.turn
+    )
+  ) {
+    return {
+      success: false,
+      message:
+        "O 5-foot step não está disponível."
+    };
+  }
+
+} else {
+
+  /*
+   * Movimento normal utiliza a ação
+   * de movimento ou a ação padrão
+   * como segunda ação de movimento.
+   */
+  if (
+    !canUseMoveAction(
+      this.state.turn
+    )
   ) {
     return {
       success: false,
@@ -922,6 +938,17 @@ export class GameEngine {
         "Nenhum movimento disponível."
     };
   }
+
+  if (
+    this.state.turn.resources.movement <= 0
+  ) {
+    return {
+      success: false,
+      message:
+        "Nenhum movimento disponível."
+    };
+  }
+}
 
   /*
    * Apenas movimento normal depende

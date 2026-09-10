@@ -2,7 +2,8 @@ import {
   useMemo,
   useState,
   useEffect,
-  useCallback
+  useCallback,
+  useRef
 } from "react";
 
 import GameMap from "./components/GameMap";
@@ -37,10 +38,6 @@ import type {
 import type {
   AnimationState
 } from "./game/entities/AnimationState";
-
-import {
-  getAnimationDuration
-} from "./game/animation/AnimationController";
 
 import type {
   EntityVisualStates
@@ -78,6 +75,38 @@ function App() {
       [gameState]
     );
 
+  /*
+  * --------------------------------------------------
+  * REFERÊNCIA ESTÁVEL DO GAME ENGINE
+  * --------------------------------------------------
+  *
+  * O GameEngine é recriado quando o React atualiza
+  * gameState. A referência permite que callbacks de
+  * animação utilizem sempre a instância mais recente
+  * sem alterar a identidade do callback.
+  */
+  const gameEngineRef =
+    useRef<GameEngine>(
+      gameEngine
+    );
+
+  gameEngineRef.current =
+    gameEngine;
+
+
+  /*
+  * --------------------------------------------------
+  * AÇÃO DA IA AGUARDANDO ANIMAÇÃO
+  * --------------------------------------------------
+  *
+  * O turno da IA só termina quando a animação
+  * correspondente terminar.
+  */
+  const pendingAIActionRef =
+    useRef<{
+      entityId: string;
+      type: "MOVE" | "ATTACK";
+    } | null>(null);
 
   /*
    * --------------------------------------------------
@@ -256,7 +285,9 @@ function App() {
 
   const isAnimationPlaying =
     Object.values(entityVisualStates).some(
-      visual => visual.animation !== "IDLE"
+      visual =>
+        visual.animation !== "IDLE" &&
+        visual.animation !== "DEATH"
     );
 
 
@@ -277,18 +308,88 @@ function App() {
     }));
   }, []);
 
-  const handleAnimationComplete = useCallback((entityId: string) => {
-    setEntityVisualStates(current => ({
-      ...current,
-      [entityId]: {
-        animation: "IDLE",
-        direction: current[entityId]?.direction ?? "SOUTH",
-        spriteId: current[entityId]?.spriteId ?? entityId,
-        persistent: false,
-        statusEffects: current[entityId]?.statusEffects ?? []
-      }
-    }));
-  }, []);
+  const handleAnimationComplete =
+    useCallback(
+      (entityId: string) => {
+
+        setEntityVisualStates(
+          current => ({
+            ...current,
+
+            [entityId]: {
+              animation: "IDLE",
+
+              direction:
+                current[entityId]?.direction ??
+                "SOUTH",
+
+              spriteId:
+                current[entityId]?.spriteId ??
+                entityId,
+
+              persistent: false,
+
+              statusEffects:
+                current[entityId]?.statusEffects ??
+                []
+            }
+          })
+        );
+
+
+        /*
+        * --------------------------------------------------
+        * FINALIZA AÇÃO DA IA
+        * --------------------------------------------------
+        *
+        * Não usamos timer para estimar a duração
+        * da animação.
+        *
+        * A animação terminou -> agora o turno pode
+        * continuar.
+        */
+        const pending =
+          pendingAIActionRef.current;
+
+        if (
+          !pending ||
+          pending.entityId !== entityId
+        ) {
+          return;
+        }
+
+
+        /*
+        * Apenas ATTACK é finalizado aqui.
+        *
+        * MOVE possui callback próprio porque precisa
+        * aguardar todo o caminho visual.
+        */
+        if (
+          pending.type !== "ATTACK"
+        ) {
+          return;
+        }
+
+
+        pendingAIActionRef.current =
+          null;
+
+
+        const result =
+          gameEngineRef.current.endTurn();
+
+
+        if (
+          result.success
+        ) {
+          setGameState(
+            gameEngineRef.current.getState()
+          );
+        }
+      },
+      []
+    );
 
   /*
    * --------------------------------------------------
@@ -452,9 +553,16 @@ function App() {
      * --------------------------------------------------
      */
 
+    const isFiveFootStepMode =
+      !turn.resources.action &&
+      turn.resources.fiveFootStepAvailable;
+
     const result =
       gameEngine.executeAction({
-        type: "MOVE",
+        type:
+          isFiveFootStepMode
+            ? "FIVE_FOOT_STEP"
+            : "MOVE",
 
         actorId:
           character.id,
@@ -517,20 +625,60 @@ function App() {
   useCallback(
     (entityId: string) => {
 
-      setMovementPaths(current => {
+      setMovementPaths(
+        current => {
 
-        const next = {
-          ...current
-        };
+          const next = {
+            ...current
+          };
 
-        delete next[entityId];
+          delete next[entityId];
 
-        return next;
-      });
+          return next;
+        }
+      );
+
 
       handleAnimationComplete(
         entityId
       );
+
+
+      /*
+       * --------------------------------------------------
+       * FINALIZA MOVIMENTO DA IA
+       * --------------------------------------------------
+       *
+       * O callback só chega aqui depois que o último
+       * passo visual foi executado.
+       */
+      const pending =
+        pendingAIActionRef.current;
+
+      if (
+        !pending ||
+        pending.entityId !== entityId ||
+        pending.type !== "MOVE"
+      ) {
+        return;
+      }
+
+
+      pendingAIActionRef.current =
+        null;
+
+
+      const result =
+        gameEngineRef.current.endTurn();
+
+
+      if (
+        result.success
+      ) {
+        setGameState(
+          gameEngineRef.current.getState()
+        );
+      }
     },
     [
       handleAnimationComplete
@@ -938,16 +1086,81 @@ function App() {
         }
 
         if (action.type === "MOVE") {
-          playAnimation(currentActive.id, "WALK");
 
-          if (movementPathForAI.length > 0) {
-            setMovementPaths(current => ({
-              ...current,
-              [currentActive.id]: movementPathForAI
-            }));
+          pendingAIActionRef.current = {
+            entityId: currentActive.id,
+            type: "MOVE"
+          };
+
+
+          playAnimation(
+            currentActive.id,
+            "WALK"
+          );
+
+
+          if (
+            movementPathForAI.length > 0
+          ) {
+            setMovementPaths(
+              current => ({
+                ...current,
+
+                [currentActive.id]:
+                  movementPathForAI
+              })
+            );
           }
         }
+        if (action.type === "ATTACK") {
 
+          pendingAIActionRef.current = {
+            entityId: currentActive.id,
+            type: "ATTACK"
+          };
+
+
+          playAnimation(
+            currentActive.id,
+            "ATTACK"
+          );
+
+          const targetAfter =
+            action.targetId
+              ? gameEngine.getState().entities.find(
+                  entity =>
+                    entity.id ===
+                    action.targetId
+                )
+              : undefined;
+
+          if (
+            targetAfter &&
+            targetBefore
+          ) {
+
+            if (
+              targetAfter.hp <= 0
+            ) {
+
+              playAnimation(
+                targetAfter.id,
+                "DEATH",
+                true
+              );
+
+            } else if (
+              targetAfter.hp <
+              targetBefore.hp
+            ) {
+
+              playAnimation(
+                targetAfter.id,
+                "HIT"
+              );
+            }
+          }
+        }        
         if (action.type === "ATTACK") {
           playAnimation(currentActive.id, "ATTACK");
 
@@ -970,25 +1183,6 @@ function App() {
         setGameState(
           gameEngine.getState()
         );
-
-        const animationDuration =
-          action.type === "MOVE"
-            ? Math.max(
-                1,
-                movementPathForAI.length
-              ) * getAnimationDuration("WALK")
-            : action.type === "ATTACK"
-              ? getAnimationDuration("ATTACK")
-              : 200;
-
-        window.setTimeout(() => {
-          gameEngine.endTurn();
-
-          setGameState(
-            gameEngine.getState()
-          );
-        }, animationDuration);
-
       }, 500);
 
     return () => {
@@ -1090,7 +1284,9 @@ function App() {
             fiveFootStepAvailable={
               turn.resources.fiveFootStepAvailable
             }
-
+            hasTakenFiveFootStep={
+              turn.resources.hasTakenFiveFootStep
+            }
             isPlayerTurn={
             activeEntity.id === character.id
             }
