@@ -75,7 +75,7 @@ func _on_request_completed(
 	if payload.has("actionResult"):
 		action_resolved.emit(
 			payload.get("actionResult", {}) as Dictionary,
-			payload.get("presentation", {}) as Dictionary
+			payload
 		)
 
 	state_received.emit(payload)
