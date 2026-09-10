@@ -1,4 +1,4 @@
-import type { EquipmentSlot } from "../inventory/EquipmentSlot";
+import type { Point } from "../types/Map";
 
 export type ActionType =
   | "MOVE"
@@ -10,6 +10,8 @@ export type ActionType =
   | "RUN"
   | "FLEE"
   | "SURRENDER"
+  | "TALK"
+  | "OBSERVE"
   | "BLUFF"
   | "DIPLOMACY"
   | "INTIMIDATE"
@@ -21,17 +23,9 @@ export type ActionType =
 
 export type GameAction = {
   type: ActionType;
-
   actorId: string;
-
   targetId?: string;
-
+  destination?: Point;
   itemId?: string;
-
-  equipmentSlot?: EquipmentSlot;
-
-  destination?: {
-    x: number;
-    y: number;
-  };
+  rushed?: boolean;
 };
