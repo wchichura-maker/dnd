@@ -1,4 +1,5 @@
 import type { Point } from "../types/Map";
+import type { EquipmentSlot } from "../inventory/EquipmentSlot";
 
 export type ActionType =
   | "MOVE"
@@ -27,5 +28,6 @@ export type GameAction = {
   targetId?: string;
   destination?: Point;
   itemId?: string;
+  equipmentSlot?: EquipmentSlot;
   rushed?: boolean;
 };
