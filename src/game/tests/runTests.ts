@@ -50,28 +50,21 @@ import {
   runAITests
 } from "./AITest";
 
+import {
+  runCombatMovementTests
+} from "./CombatMovementTest";
+
 runRulesTests();
-
 runRangeRulesTests();
-
 runPathfindingTests();
-
 runFiveFootStepTests();
-
 runStabilizationTests();
-
 runSavingThrowTests();
-
 runConditionStateTests();
-
 runDisabledStateTests();
-
 runHitPointTransitionTests();
-
 runCoupDeGraceTests();
-
 runCoupDeGraceIntegrationTests();
-
 runCombatResolutionTests();
-
 runAITests();
+runCombatMovementTests();
