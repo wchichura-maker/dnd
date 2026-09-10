@@ -135,6 +135,7 @@ func _select_target_at(world_position: Vector2) -> bool:
 		var view := node.get_node_or_null("EntityView") as EntityView
 		if view: view.selected = entity_id == selected_target_id
 	_update_target_label()
+	_update_attack_button()
 	_update_coup_de_grace_button()
 	return not selected_target_id.is_empty()
 
@@ -177,11 +178,18 @@ func _update_combat_hud(state: Dictionary, snapshot: Dictionary) -> void:
 	var max_hp := int(player_entity.get("maxHp", 0))
 	$CombatHUD/Panel/Margin/VBox/Status.text = "Modo: %s\nTurno: %s\nKael: HP %d/%d  Movimento %d" % [mode, active_name if not active_name.is_empty() else "—", hp, max_hp, movement_budget]
 	$CombatHUD/Panel/Margin/VBox/StartCombat.disabled = mode != "EXPLORATION"
-	$CombatHUD/Panel/Margin/VBox/Attack.disabled = mode != "COMBAT" or active_id != PLAYER_ID or selected_target_id.is_empty()
+	_update_attack_button()
 	_update_coup_de_grace_button()
 	$CombatHUD/Panel/Margin/VBox/EndTurn.disabled = mode == "EXPLORATION" or active_id != PLAYER_ID
 	_update_target_label()
 	_update_action_log()
+
+func _update_attack_button() -> void:
+	var combat := latest_state.get("combat", {}) as Dictionary
+	var turn_order := combat.get("turnOrder", []) as Array
+	var current_index := int(combat.get("currentTurnIndex", 0))
+	var active_id := str(turn_order[current_index]) if current_index >= 0 and current_index < turn_order.size() else ""
+	$CombatHUD/Panel/Margin/VBox/Attack.disabled = str(latest_state.get("mode", "EXPLORATION")) != "COMBAT" or active_id != PLAYER_ID or selected_target_id.is_empty()
 
 func _update_action_log() -> void:
 	var label: Label = $CombatHUD/Panel/Margin/VBox/ActionLog
