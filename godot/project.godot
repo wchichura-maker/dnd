@@ -7,8 +7,6 @@ config_version=5
 config/name="D&D Online"
 run/main_scene="res://godot/scenes/Main.tscn"
 
-[display]
-
 [display/window]
 size/viewport_width=1280
 size/viewport_height=720
