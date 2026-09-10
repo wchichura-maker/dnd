@@ -1,6 +1,9 @@
-export type Tile = {
+export type Point = {
   x: number;
   y: number;
+};
+
+export type Tile = Point & {
   walkable: boolean;
 };
 
