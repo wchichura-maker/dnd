@@ -95,9 +95,6 @@ func _apply_entity_state(state: Dictionary) -> void:
 			else:
 				adapter.bind_entity(player, snapshot)
 		else:
-			# Non-player entities are authoritative too. Their presentation node
-			# must follow the Core grid position; the adapter intentionally does not
-			# own transforms so it cannot cause the player's movement bounce.
 			node.position = _grid_to_world(snapshot.grid_position)
 			var view := adapter.bind_entity(node, snapshot)
 			view.selected = entity_id == selected_target_id
@@ -143,7 +140,7 @@ func _select_target_at(world_position: Vector2) -> void:
 		if not is_instance_valid(node):
 			continue
 		var view := node.get_node_or_null("EntityView") as EntityView
-		if view and view.grid_position == clicked_tile:
+		if view and Vector2i(floori(node.position.x / TILE_SIZE), floori(node.position.y / TILE_SIZE)) == clicked_tile:
 			found_id = entity_id
 			break
 	selected_target_id = found_id
