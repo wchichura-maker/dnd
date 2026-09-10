@@ -11,6 +11,8 @@ export type ActionResult = {
     critical?: boolean;
     targetId?: string;
     targetDied?: boolean;
+    combatEnded?: boolean;
+    combatEndReason?: string;
     damageRoll?: number;
     fortitudeRoll?: number;
     fortitude?: { bonus: number; total: number; dc: number; success: boolean };
