@@ -58,15 +58,13 @@ func _apply_map_state(state: Dictionary) -> void:
 	if not tiles_variant is Array:
 		return
 
-	for y_variant in tiles_variant as Array:
-		if not y_variant is Array:
+	var rows: Array = tiles_variant
+	for y in range(rows.size()):
+		var row_variant: Variant = rows[y]
+		if not row_variant is Array:
 			continue
 
-		var row: Array = y_variant
-		var y: int = blocked_tiles.size()
-		if y >= map_size.y:
-			break
-
+		var row: Array = row_variant
 		for x in range(row.size()):
 			var tile_variant: Variant = row[x]
 			if not tile_variant is Dictionary:
