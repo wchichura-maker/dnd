@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { GameEngineCombatExtensionsWithFlee } from "../core/GameEngineCombatExtensionsWithFlee";
+import { GameEngineEncounterWithFlee } from "../core/GameEngineEncounterWithFlee";
 import { createInitialGameState } from "../core/createInitialGameState";
 import { chooseAction } from "../AI";
 import { findPath, getReachablePositions } from "../rules/Pathfinding";
@@ -12,7 +12,7 @@ const PORT = Number(process.env.GAME_CORE_PORT ?? 8787);
 const PLAYER_ID = "player-01";
 const MAX_ACTION_LOG_ENTRIES = 100;
 
-let engine = new GameEngineCombatExtensionsWithFlee(createInitialGameState());
+let engine = new GameEngineEncounterWithFlee(createInitialGameState());
 let actionLog: Array<Record<string, unknown>> = [];
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
@@ -151,13 +151,12 @@ const server = createServer(async (request, response) => {
     if (request.method === "OPTIONS") return sendJson(response, 204, {});
     if (request.method === "GET" && request.url === "/health") return sendJson(response, 200, { ok: true, service: "dnd-game-core" });
 
-    // GET is intentionally read-only. Game transitions and AI execution only happen on POST commands.
     if (request.method === "GET" && request.url === "/state") {
       return sendJson(response, 200, getSnapshot());
     }
 
     if (request.method === "POST" && request.url === "/reset") {
-      engine = new GameEngineCombatExtensionsWithFlee(createInitialGameState());
+      engine = new GameEngineEncounterWithFlee(createInitialGameState());
       actionLog = [];
       appendActionLog({ source: "SYSTEM", type: "RESET", success: true, message: "Jogo reiniciado." });
       return sendJson(response, 200, getSnapshot());
@@ -172,6 +171,7 @@ const server = createServer(async (request, response) => {
       engine.setState({
         ...current,
         mode: "EXPLORATION",
+        encounter: undefined,
         entities: current.entities.map(entity => entity.id === PLAYER_ID ? { ...initialPlayer } : entity),
         combat: { turnOrder: [], currentTurnIndex: 0, active: false },
         turn: initial.turn,
