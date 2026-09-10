@@ -72,4 +72,34 @@ offset_left = 24.0
 offset_top = 510.0
 theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
 theme_override_font_sizes/font_size = 14
-text = "Clique esquerdo: mover\nClique direito: selecionar alvo\nESC: sair"
+text = "Clique esquerdo: mover / selecionar alvo\nClique direito: selecionar alvo\nESC: sair"
+
+[node name="DeathOverlay" type="CanvasLayer" parent="."]
+
+[node name="Dim" type="ColorRect" parent="DeathOverlay"]
+offset_right = 1280.0
+offset_bottom = 720.0
+color = Color(0, 0, 0, 0.78)
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="DeathOverlay"]
+offset_right = 1280.0
+offset_bottom = 720.0
+
+[node name="VBox" type="VBoxContainer" parent="DeathOverlay/Center"]
+theme_override_constants/separation = 18
+
+[node name="Message" type="Label" parent="DeathOverlay/Center/VBox"]
+text = "VOCÊ MORREU"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 42
+
+[node name="Hint" type="Label" parent="DeathOverlay/Center/VBox"]
+text = "Seu personagem chegou ao fim. Escolha como continuar."
+horizontal_alignment = 1
+
+[node name="Spectator" type="Button" parent="DeathOverlay/Center/VBox"]
+text = "Continuar como espectador"
+
+[node name="NewCharacter" type="Button" parent="DeathOverlay/Center/VBox"]
+text = "Criar novo personagem"
