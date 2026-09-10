@@ -1,4 +1,5 @@
 import { GameEngineCombatExtensions } from "../core/GameEngineCombatExtensions";
+import { GameEngineCombatExtensionsWithFlee } from "../core/GameEngineCombatExtensionsWithFlee";
 import { createInitialGameState } from "../core/createInitialGameState";
 
 export function runCombatResolutionTests(): void {
@@ -18,6 +19,20 @@ export function runCombatResolutionTests(): void {
   const attackResult = attackScenario.executeAction(attackAction);
   if (attackScenario.getState().mode !== "COMBAT") throw new Error("Uma ação de ataque deveria iniciar o combate automaticamente.");
   if (attackResult.message.includes("Combate não iniciado")) throw new Error("A ação de ataque não deveria ser bloqueada pela ausência de botão de combate.");
+
+  const fleeScenario = new GameEngineCombatExtensionsWithFlee(createInitialGameState());
+  const fleeStart = fleeScenario.startCombat();
+  if (!fleeStart.success) throw new Error("Combate não iniciou para o teste de fuga.");
+  const fleeingActor = fleeScenario.getActiveEntity();
+  if (!fleeingActor) throw new Error("Entidade ativa não encontrada para o teste de fuga.");
+  const fleeResult = fleeScenario.executeAction({
+    type: "FLEE",
+    actorId: fleeingActor.id,
+    destination: { x: fleeingActor.position.x + 4, y: fleeingActor.position.y }
+  });
+  if (!fleeResult.success) throw new Error(`Fuga deveria ser uma resolução válida: ${fleeResult.message}`);
+  if (fleeScenario.getState().mode !== "EXPLORATION") throw new Error("Fuga bem-sucedida deveria retornar para exploração.");
+  if (fleeResult.data?.combatEndReason !== "FLEE") throw new Error("Fuga deveria registrar FLEE como motivo do encerramento.");
 
   const engine = new GameEngineCombatExtensions(createInitialGameState());
   const start = engine.startCombat();
@@ -50,6 +65,7 @@ export function runCombatResolutionTests(): void {
 
   console.log("✓ Ataque inicia combate automaticamente");
   console.log("✓ Combate não inicia automaticamente enquanto o inimigo hostil está fora do alcance");
+  console.log("✓ Fuga usa a corrida D&D e encerra o combate após movimento válido");
   console.log("✓ Morte pode encerrar o combate e retornar para exploração");
   console.log("✓ Rendição, fuga, prisão, blefe, persuasão, intimidação e negociação possuem motivos de resolução");
   console.log("✓ TESTES DE RESOLUÇÃO DE COMBATE PASSARAM");
