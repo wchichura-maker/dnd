@@ -1940,7 +1940,7 @@ if (isFiveFootStep) {
    * --------------------------------------------------
    */
 
-  private getEntity(
+  protected getEntity(
     id: string
   ) {
 
