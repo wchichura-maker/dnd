@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test:rules": "tsx src/game/tests/runTests.ts"
+    "test:rules": "tsx src/game/tests/runTests.ts",
+    "game-core": "tsx src/game/transport/GameCoreServer.ts"
   },
   "dependencies": {
     "react": "^19.2.8",
