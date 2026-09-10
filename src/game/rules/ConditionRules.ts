@@ -180,6 +180,35 @@ export function applyHealing(
   return healed;
 }
 
+/**
+ * Resolve o efeito de uma ação padrão/árdua realizada
+ * enquanto o personagem estava DISABLED.
+ *
+ * D&D 3.5: a ação causa 1 HP de dano ao final,
+ * exceto se a própria atividade tiver aumentado os HP.
+ */
+export function resolveDisabledStrenuousAction(
+  beforeAction: Combatant,
+  afterAction: Combatant
+): Combatant {
+  if (
+    getHitPointState(beforeAction) !== "DISABLED"
+  ) {
+    return afterAction;
+  }
+
+  if (
+    afterAction.hp > beforeAction.hp
+  ) {
+    return afterAction;
+  }
+
+  return applyDamage(
+    afterAction,
+    1
+  );
+}
+
 export function canAct(
   combatant: Combatant
 ): boolean {
