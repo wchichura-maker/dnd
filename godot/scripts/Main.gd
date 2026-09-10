@@ -94,7 +94,8 @@ func _apply_entity_state(state: Dictionary) -> void:
 		if entity_id.is_empty():
 			continue
 
-		var node: Node2D = _get_or_create_entity_node(entity_id, str(entity.get("type", "NPC")))
+		var entity_type: String = str(entity.get("type", "NPC"))
+		var node: Node2D = _get_or_create_entity_node(entity_id, entity_type)
 		if node == null:
 			continue
 
@@ -105,25 +106,28 @@ func _apply_entity_state(state: Dictionary) -> void:
 			player.grid_position = snapshot.grid_position
 			if not player.is_moving:
 				player.position = _grid_to_world(snapshot.grid_position)
-
-		adapter.bind_entity(node, snapshot)
+			var player_view: EntityView = player.get_node_or_null("EntityView") as EntityView
+			if player_view == null:
+				adapter.bind_entity(player, snapshot)
+			else:
+				player_view.apply_snapshot(snapshot)
+		else:
+			adapter.bind_entity(node, snapshot)
 
 	_cleanup_removed_entities(active_ids)
 
 func _create_entity_snapshot(entity: Dictionary) -> EntitySnapshot:
 	var position_variant: Variant = entity.get("position", {})
-	var position: Dictionary = position_variant as Dictionary
-	var grid_position: Vector2i = Vector2i(
-		int(position.get("x", 0)),
-		int(position.get("y", 0))
-	)
+	if not position_variant is Dictionary:
+		return EntitySnapshot.from_dictionary(entity)
 
+	var position: Dictionary = position_variant
 	return EntitySnapshot.from_dictionary({
 		"id": str(entity.get("id", "")),
 		"name": str(entity.get("name", "")),
 		"type": str(entity.get("type", "NPC")),
-		"x": grid_position.x,
-		"y": grid_position.y,
+		"x": int(position.get("x", 0)),
+		"y": int(position.get("y", 0)),
 		"hp": int(entity.get("hp", 0)),
 		"maxHp": int(entity.get("maxHp", 0)),
 		"armorClass": int(entity.get("armorClass", 10)),
@@ -134,16 +138,13 @@ func _get_or_create_entity_node(entity_id: String, entity_type: String) -> Node2
 	if entity_nodes.has(entity_id):
 		return entity_nodes[entity_id] as Node2D
 
+	if entity_type == "PLAYER":
+		return null
+
 	var node: Node2D = Node2D.new()
 	node.name = "Entity_%s" % entity_id
 	add_child(node)
 	entity_nodes[entity_id] = node
-
-	if entity_type == "PLAYER":
-		node.queue_free()
-		entity_nodes.erase(entity_id)
-		return null
-
 	return node
 
 func _cleanup_removed_entities(active_ids: Dictionary[String, bool]) -> void:
