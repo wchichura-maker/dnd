@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { GameEngine } from "../core/GameEngine";
+import { GameEngineCombatExtensions } from "../core/GameEngineCombatExtensions";
 import { createInitialGameState } from "../core/createInitialGameState";
 import { chooseAction } from "../AI";
 import { findPath, getReachablePositions } from "../rules/Pathfinding";
@@ -9,7 +9,7 @@ import type { GameAction } from "../actions/Action";
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GAME_CORE_PORT ?? 8787);
 const PLAYER_ID = "player-01";
-let engine = new GameEngine(createInitialGameState());
+let engine = new GameEngineCombatExtensions(createInitialGameState());
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
   const body = JSON.stringify(payload);
@@ -80,7 +80,7 @@ const server = createServer(async (request, response) => {
       return sendJson(response, 200, getSnapshot());
     }
     if (request.method === "POST" && request.url === "/reset") {
-      engine = new GameEngine(createInitialGameState());
+      engine = new GameEngineCombatExtensions(createInitialGameState());
       return sendJson(response, 200, getSnapshot());
     }
     if (request.method === "POST" && request.url === "/combat/start") {
