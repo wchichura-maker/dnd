@@ -61,13 +61,13 @@ export function runCombatMovementIntegrationTests(): void {
 
   const run = createCombatScenario();
   // O inimigo ameaça a casa inicial, mas não ocupa a trajetória da corrida.
-  // Assim a corrida pode seguir em linha reta e, ao sair da área ameaçada,
-  // o AoO pode ser validado separadamente do bloqueio de ocupação.
+  // O destino precisa ser uma casa livre: (8,5), (9,5) e (10,5) fazem parte
+  // da área bloqueada do mapa inicial.
   setPositions(run, { x: 3, y: 5 }, { x: 2, y: 5 });
-  const runResult = run.executeAction({ type: "RUN", actorId: "player-01", destination: { x: 9, y: 5 } });
+  const runResult = run.executeAction({ type: "RUN", actorId: "player-01", destination: { x: 7, y: 5 } });
   if (!runResult.success) throw new Error(`Run deveria ser concluído: ${runResult.message}`);
   const runPlayer = run.getState().entities.find(entity => entity.id === "player-01");
-  if (!runPlayer || runPlayer.position.x !== 9 || runPlayer.position.y !== 5) throw new Error("Run não levou o personagem ao destino.");
+  if (!runPlayer || runPlayer.position.x !== 7 || runPlayer.position.y !== 5) throw new Error("Run não levou o personagem ao destino.");
   if (run.getState().turn.resources.action || run.getState().turn.resources.moveAction) throw new Error("Run deveria consumir a rodada completa.");
   if (!run.getState().logs.some(log => log.includes("ATAQUE DE OPORTUNIDADE"))) throw new Error("Run deveria provocar AoO ao sair de uma casa ameaçada.");
 
