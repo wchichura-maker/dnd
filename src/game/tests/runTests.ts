@@ -58,6 +58,10 @@ import {
   runWithdrawRulesTests
 } from "./WithdrawRulesTest";
 
+import {
+  runCombatMovementIntegrationTests
+} from "./CombatMovementIntegrationTest";
+
 runRulesTests();
 runRangeRulesTests();
 runPathfindingTests();
@@ -73,3 +77,4 @@ runCombatResolutionTests();
 runAITests();
 runCombatMovementTests();
 runWithdrawRulesTests();
+runCombatMovementIntegrationTests();
