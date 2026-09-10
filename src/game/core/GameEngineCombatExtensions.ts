@@ -198,10 +198,9 @@ export class GameEngineCombatExtensions extends GameEngine {
       : targetAfterDamage;
 
     const nextTurn = consumeFullRoundAction(state.turn);
-
-    let turnOrder = state.combat.turnOrder.filter(
-      id => id !== target.id
-    );
+    const turnOrder = coupResult.targetDied
+      ? state.combat.turnOrder.filter(id => id !== target.id)
+      : state.combat.turnOrder;
 
     const nextState = {
       ...state,
