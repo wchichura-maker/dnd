@@ -95,10 +95,12 @@ func _apply_entity_state(state: Dictionary) -> void:
 			else:
 				adapter.bind_entity(player, snapshot)
 		else:
-			adapter.bind_entity(node, snapshot)
-			var view := node.get_node_or_null("EntityView") as EntityView
-			if view:
-				view.selected = entity_id == selected_target_id
+			# Non-player entities are authoritative too. Their presentation node
+			# must follow the Core grid position; the adapter intentionally does not
+			# own transforms so it cannot cause the player's movement bounce.
+			node.position = _grid_to_world(snapshot.grid_position)
+			var view := adapter.bind_entity(node, snapshot)
+			view.selected = entity_id == selected_target_id
 	_cleanup_removed_entities(active_ids)
 
 func _create_entity_snapshot(entity: Dictionary) -> EntitySnapshot:
@@ -141,7 +143,7 @@ func _select_target_at(world_position: Vector2) -> void:
 		if not is_instance_valid(node):
 			continue
 		var view := node.get_node_or_null("EntityView") as EntityView
-		if view and view.snapshot.grid_position == clicked_tile:
+		if view and view.grid_position == clicked_tile:
 			found_id = entity_id
 			break
 	selected_target_id = found_id
@@ -161,7 +163,7 @@ func _update_target_label() -> void:
 		return
 	var node := entity_nodes.get(selected_target_id) as Node2D
 	var view := node.get_node_or_null("EntityView") as EntityView if is_instance_valid(node) else null
-	label.text = "Alvo: %s" % (view.snapshot.name if view else selected_target_id)
+	label.text = "Alvo: %s" % (view.entity_name if view else selected_target_id)
 
 func _on_start_combat() -> void:
 	game_core.start_combat()
