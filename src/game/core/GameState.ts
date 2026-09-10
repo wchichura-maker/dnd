@@ -1,0 +1,27 @@
+import type { GameMap } from "../types/Map";
+import type { Combatant } from "../entities/Combatant";
+import type { CombatState } from "../types/CombatState";
+import type { Turn } from "../types/Turn";
+
+import type { Relationship } from "../relationships/Relationship";
+import type { RelationshipEvent } from "../relationships/RelationshipEvent";
+
+import type { GameMode } from "./GameMode";
+
+export type GameState = {
+  map: GameMap;
+
+  entities: Combatant[];
+
+  relationships: Relationship[];
+
+  relationshipEvents: RelationshipEvent[];
+
+  mode: GameMode;
+
+  combat: CombatState;
+
+  turn: Turn;
+
+  logs: string[];
+};
