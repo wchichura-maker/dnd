@@ -34,7 +34,11 @@ The existing React/TypeScript application remains untouched and continues to be 
 
 ## Run
 
-Open this directory as a project in Godot 4.x and run the main scene/project.
+**Open the `godot/` directory itself as the Godot 4.x project.**
+
+Do not open `Main.tscn` from the repository root and do not open the repository root as the Godot project. The Godot project root is this directory, so the scene is `res://scenes/Main.tscn` and scripts are under `res://scripts/`.
+
+Run the project with **F6/F5** after opening it in Godot. If Godot asks for the project, select this `godot/` directory.
 
 Controls in this foundation prototype:
 
