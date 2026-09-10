@@ -1,8 +1,8 @@
 extends Node2D
 
-## Godot rendering foundation only.
-## No D&D rules are implemented here yet.
-## The existing TypeScript Game Core remains the source of game logic.
+## Godot client foundation.
+## Rendering is local to Godot; game rules remain in the TypeScript Game Core.
+## The adapter below establishes the first render-facing entity boundary.
 
 const TILE_SIZE := 48.0
 const MAP_SIZE := Vector2i(26, 16)
@@ -27,6 +27,23 @@ var blocked_tiles := {
 }
 
 func _ready() -> void:
+	var adapter := GameEntityAdapter.new()
+	add_child(adapter)
+
+	# This snapshot mirrors the current TypeScript playerCharacter's render-relevant state:
+	# id, name, type, position, HP and movement. No D&D rule is executed here.
+	var player_snapshot := EntitySnapshot.from_dictionary({
+		"id": "player-01",
+		"name": "Kael",
+		"type": "PLAYER",
+		"x": 3,
+		"y": 3,
+		"hp": 30,
+		"maxHp": 30,
+		"movement": 6,
+	})
+
+	adapter.bind_entity($Player, player_snapshot)
 	queue_redraw()
 
 func _draw() -> void:
@@ -49,6 +66,6 @@ func _draw() -> void:
 				draw_line(rect.position + Vector2(8, 8), rect.end - Vector2(8, 8), Color("45474a"), 2.0)
 				draw_line(Vector2(rect.end.x - 8, rect.position.y + 8), Vector2(rect.position.x + 8, rect.end.y - 8), Color("45474a"), 2.0)
 
-	# A simple spawn marker documents the coordinate origin used by this scene.
+	# Reference marker for the prototype map coordinate used during the foundation phase.
 	var spawn_rect := Rect2(Vector2(13, 7) * TILE_SIZE, Vector2.ONE * TILE_SIZE)
 	draw_rect(spawn_rect, Color("d0a85c"), false, 2.0)
