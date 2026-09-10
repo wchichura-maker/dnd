@@ -26,6 +26,10 @@ import {
   runConditionStateTests
 } from "./ConditionStateTest";
 
+import {
+  runDisabledStateTests
+} from "./DisabledStateTest";
+
 runRulesTests();
 
 runRangeRulesTests();
@@ -39,3 +43,5 @@ runStabilizationTests();
 runSavingThrowTests();
 
 runConditionStateTests();
+
+runDisabledStateTests();
