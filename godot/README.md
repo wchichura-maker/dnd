@@ -4,22 +4,28 @@ This directory contains the new Godot client foundation.
 
 ## Current scope
 
-This first vertical slice proves only the client/runtime foundation:
+The current vertical slice proves the client/runtime foundation and the first render-facing entity boundary:
 
 - Godot 4 project configuration.
 - Main `Node2D` scene.
 - Prototype 2D map/grid renderer.
 - `Camera2D` following the player.
-- Keyboard input through the Godot input system.
-- Temporary player marker.
-- Clear separation from the existing TypeScript Game Core.
+- Keyboard input.
+- `EntitySnapshot` render-facing data contract.
+- `GameEntityAdapter` boundary between game data and Godot nodes.
+- `EntityView` presentation node with name and HP bar.
+- Player entity initialized from the current TypeScript `playerCharacter` render-relevant state.
+
+## Architecture rule
+
+Godot presentation nodes do not own D&D rules. The adapter receives render-facing entity state and applies it to Godot nodes. The existing TypeScript Game Core remains the reference implementation for rules during this migration.
 
 ## Deliberate non-goals
 
 The following are **not** migrated yet:
 
-- D&D rules.
-- GameEngine.
+- D&D rules execution.
+- GameEngine execution inside Godot.
 - Combat.
 - Pathfinding.
 - Turn resources.
@@ -30,19 +36,15 @@ The following are **not** migrated yet:
 - Final art assets.
 - Final UI.
 
-The existing React/TypeScript application remains untouched and continues to be the reference implementation for game logic during the migration.
-
 ## Run
 
 **Open the `godot/` directory itself as the Godot 4.x project.**
 
-Do not open `Main.tscn` from the repository root and do not open the repository root as the Godot project. The Godot project root is this directory, so the scene is `res://scenes/Main.tscn` and scripts are under `res://scripts/`.
-
-Run the project with **F6/F5** after opening it in Godot. If Godot asks for the project, select this `godot/` directory.
+Run the project with **F6/F5**.
 
 Controls in this foundation prototype:
 
-- `WASD` / arrow keys: move the temporary player marker.
+- `WASD` / arrow keys: move the temporary local player representation.
 - `ESC`: quit.
 
-The next milestone is to validate this foundation in a local Godot runtime before introducing the first Game Core adapter.
+The next milestone is to validate this entity adapter in the local Godot runtime before connecting authoritative movement from the TypeScript Game Core.
