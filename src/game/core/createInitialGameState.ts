@@ -7,9 +7,26 @@ import { createTurn } from "../Turn";
 
 export function createInitialGameState(): GameState {
   const map = createMap(
-    20,
-    12
+    26,
+    16
   );
+
+  const blockedTiles = [
+    [8, 5], [9, 5], [10, 5],
+    [8, 6],           [10, 6],
+    [8, 7], [9, 7], [10, 7],
+    [17, 9], [18, 9], [19, 9],
+    [17, 10],          [19, 10],
+    [17, 11], [18, 11], [19, 11]
+  ];
+
+  for (const [x, y] of blockedTiles) {
+    const tile = map.tiles[y]?.[x];
+
+    if (tile) {
+      tile.walkable = false;
+    }
+  }
 
   const entities = [
     playerCharacter,
@@ -71,11 +88,6 @@ export function createInitialGameState(): GameState {
 
     relationshipEvents: [],
 
-    /*
-     * ESTADO INICIAL:
-     *
-     * EXPLORAÇÃO
-     */
     mode: "EXPLORATION",
 
     combat,
