@@ -20,6 +20,14 @@ export type ActionResult = {
       | "ARMOR"
       | "SHIELD";
 
+    damage?: number;
+
+    critical?: boolean;
+
+    targetId?: string;
+
+    targetDied?: boolean;
+
     attack?: {
       roll: number;
 
