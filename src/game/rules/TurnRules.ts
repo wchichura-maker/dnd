@@ -2,32 +2,52 @@ import type { Turn } from "../types/Turn";
 
 /**
  * Verifica se ainda existe uma ação padrão.
+ *
+ * D&D 3.5: uma criatura disabled pode realizar
+ * somente uma ação de movimento OU uma ação padrão.
  */
 export function canUseStandardAction(
   turn: Turn
 ): boolean {
-  return turn.resources.action;
+  if (!turn.resources.action) {
+    return false;
+  }
+
+  if (
+    turn.resources.disabled &&
+    turn.resources.hasMoved
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
  * Verifica se ainda existe uma ação de movimento.
  *
  * A ação padrão pode ser convertida em uma
- * segunda ação de movimento.
+ * segunda ação de movimento para personagens normais.
  *
  * Depois de realizar um 5-foot step,
  * movimento normal não é mais permitido
  * neste turno.
  *
- * Se a ação padrão já foi consumida sem que
- * tenha havido movimento normal, o movimento
- * restante é reservado para o 5-foot step.
+ * Personagens disabled só podem realizar
+ * uma ação de movimento OU uma ação padrão.
  */
 export function canUseMoveAction(
   turn: Turn
 ): boolean {
   if (
     turn.resources.hasTakenFiveFootStep
+  ) {
+    return false;
+  }
+
+  if (
+    turn.resources.disabled &&
+    turn.resources.hasMoved
   ) {
     return false;
   }
@@ -219,7 +239,8 @@ export function resetTurn(
       fiveFootStepAvailable: true,
       hasMoved: false,
       hasTakenFiveFootStep: false,
-      movement
+      movement,
+      disabled: turn.resources.disabled
     }
   };
 }
