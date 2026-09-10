@@ -21,6 +21,15 @@ func request_state() -> void:
 func request_action(action: Dictionary) -> void:
 	_request("POST", "/action", action)
 
+func start_combat() -> void:
+	_request("POST", "/combat/start", {})
+
+func end_combat() -> void:
+	_request("POST", "/combat/end", {})
+
+func end_turn() -> void:
+	_request("POST", "/turn/end", {})
+
 func reset_game() -> void:
 	_request("POST", "/reset", {})
 
@@ -66,15 +75,22 @@ func _on_request_completed(
 		return
 
 	var payload: Dictionary = parsed
+	var action_result: Dictionary = payload.get("actionResult", {}) as Dictionary
 
 	if response_code < 200 or response_code >= 300:
-		var message: String = str(payload.get("message", "Ação rejeitada pelo Game Core."))
+		var message: String = str(
+			action_result.get(
+				"message",
+				payload.get("message", "Ação rejeitada pelo Game Core.")
+			)
+		)
 		transport_error.emit(message)
+		state_received.emit(payload)
 		return
 
 	if payload.has("actionResult"):
 		action_resolved.emit(
-			payload.get("actionResult", {}) as Dictionary,
+			action_result,
 			payload
 		)
 
