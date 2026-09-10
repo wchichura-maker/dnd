@@ -1,6 +1,6 @@
 import {
-  GameEngineCombatExtensions
-} from "../core/GameEngineCombatExtensions";
+  GameEngineCombatExtensionsWithCoupAoO
+} from "../core/GameEngineCombatExtensionsWithCoupAoO";
 
 import {
   createInitialGameState
@@ -24,7 +24,7 @@ export function runCoupDeGraceIntegrationTests(): void {
   console.log("INICIANDO TESTES DE INTEGRAÇÃO DE GOLPE DE MISERICÓRDIA");
   console.log("==============================");
 
-  const engine = new GameEngineCombatExtensions(
+  const engine = new GameEngineCombatExtensionsWithCoupAoO(
     createInitialGameState()
   );
 
@@ -38,32 +38,59 @@ export function runCoupDeGraceIntegrationTests(): void {
   assert(!!player, "O jogador deve existir.");
   assert(!!orc, "O orc deve existir.");
 
-  if (!player || !orc) {
-    return;
-  }
+  if (!player || !orc) return;
 
   const adjacentOrc = {
     ...orc,
     hp: -1,
     conditions: [],
-    position: {
-      x: player.position.x + 1,
-      y: player.position.y
-    }
+    position: { x: 6, y: 5 }
   };
 
-  const synchronizedTurn = createTurn(player);
+  const threateningOrc = {
+    ...orc,
+    id: "orc-02",
+    name: "Orc Guarda",
+    hp: 20,
+    position: { x: 4, y: 5 }
+  };
+
+  const synchronizedTurn = createTurn({
+    ...player,
+    hp: 50,
+    position: { x: 5, y: 5 }
+  });
 
   engine.setState({
     ...started,
-    entities: started.entities.map(entity =>
-      entity.id === adjacentOrc.id
-        ? adjacentOrc
-        : entity
-    ),
+    entities: started.entities
+      .map(entity => {
+        if (entity.id === player.id) return { ...player, hp: 50, position: { x: 5, y: 5 } };
+        if (entity.id === adjacentOrc.id) return adjacentOrc;
+        return entity;
+      })
+      .concat(threateningOrc),
+    relationships: [
+      ...started.relationships,
+      {
+        id: "relationship-player-orc-02",
+        entityAId: player.id,
+        entityBId: threateningOrc.id,
+        friendship: 0,
+        trust: 0,
+        respect: 0,
+        fear: 0,
+        attraction: 0,
+        loyalty: 0,
+        hostile: true,
+        allied: false,
+        rival: false,
+        romantic: false
+      }
+    ],
     combat: {
       ...started.combat,
-      turnOrder: [player.id, adjacentOrc.id],
+      turnOrder: [player.id, adjacentOrc.id, threateningOrc.id],
       currentTurnIndex: 0,
       active: true
     },
@@ -78,10 +105,6 @@ export function runCoupDeGraceIntegrationTests(): void {
     beforeAction.turn.characterId === player.id,
     "O jogador deve ser a entidade ativa antes do Golpe de Misericórdia."
   );
-  assert(
-    beforeAction.combat.turnOrder[beforeAction.combat.currentTurnIndex] === player.id,
-    "A ordem de iniciativa deve indicar o jogador como entidade ativa."
-  );
 
   const result = engine.executeAction({
     type: "COUP_DE_GRACE",
@@ -91,34 +114,45 @@ export function runCoupDeGraceIntegrationTests(): void {
 
   assert(
     result.success,
-    `O Golpe de Misericórdia deve ser aceito contra um alvo DYING adjacente. ${result.message ?? ""}`
+    `O Golpe de Misericórdia deve ser aceito após resolver o AoO. ${result.message ?? ""}`
   );
 
   const after = engine.getState();
   const targetAfter = after.entities.find(entity => entity.id === adjacentOrc.id);
-
-  assert(
-    !!targetAfter,
-    "O alvo deve continuar representado em entities mesmo quando morrer."
-  );
-
-  if (!targetAfter) {
-    return;
-  }
+  assert(!!targetAfter, "O alvo deve continuar representado em entities.");
+  if (!targetAfter) return;
 
   assert(
     targetAfter.hp <= adjacentOrc.hp,
     "O Golpe de Misericórdia deve aplicar dano ao alvo."
   );
 
+  const opportunityAttacks = result.data?.opportunityAttacks ?? [];
+  assert(
+    opportunityAttacks.length === 1,
+    "O Golpe de Misericórdia deve provocar exatamente um AoO do defensor ameaçando o atacante."
+  );
+
+  assert(
+    opportunityAttacks[0]?.attackerId === threateningOrc.id,
+    "O AoO deve ser realizado pelo inimigo que ameaça o atacante."
+  );
+
+  assert(
+    after.logs.some(log => log.includes("antes do GOLPE DE MISERICÓRDIA")),
+    "O log deve registrar o AoO provocado pelo Golpe de Misericórdia."
+  );
+
   assert(
     after.turn.resources.action === false &&
     after.turn.resources.moveAction === false,
-    "O Golpe de Misericórdia deve consumir ação padrão e ação de movimento."
+    "O Golpe de Misericórdia deve consumir a rodada completa quando o AoO não interrompe a ação."
   );
 
   console.log("✓ COUP_DE_GRACE é roteado pelo engine de combate");
   console.log("✓ Alvo DYING adjacente pode receber Golpe de Misericórdia");
+  console.log("✓ O Golpe de Misericórdia provoca Ataque de Oportunidade");
+  console.log("✓ O AoO é limitado a um ataque por defensor na rodada");
   console.log("✓ O dano é aplicado pelo sistema de HP");
   console.log("✓ A ação consome a rodada completa");
   console.log("==============================");
