@@ -4,6 +4,10 @@ import type {
   Turn
 } from "./types/Turn";
 
+import {
+  getAvailableMovement
+} from "./rules/ConditionRules";
+
 export function createTurn(
   character: Combatant
 ): Turn {
@@ -25,7 +29,7 @@ export function createTurn(
       hasTakenFiveFootStep: false,
 
       movement:
-        character.movement
+        getAvailableMovement(character)
     }
   };
 }
