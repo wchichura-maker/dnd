@@ -91,6 +91,20 @@ export function removeCondition(
   };
 }
 
+/**
+ * D&D 3.5: uma criatura disabled move-se à metade
+ * de seu deslocamento normal.
+ */
+export function getAvailableMovement(
+  combatant: Combatant
+): number {
+  if (getHitPointState(combatant) === "DISABLED") {
+    return Math.floor(combatant.movement / 2);
+  }
+
+  return combatant.movement;
+}
+
 export function canAct(
   combatant: Combatant
 ): boolean {
