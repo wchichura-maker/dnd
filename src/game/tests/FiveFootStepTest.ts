@@ -43,19 +43,13 @@ export function runFiveFootStepTests(): void {
     "=============================="
   );
 
-  /*
-   * ESTADO INICIAL
-   */
-
   const initialTurn =
     createTurn(
       playerCharacter
     );
 
   assert(
-    canTakeFiveFootStep(
-      initialTurn
-    ),
+    canTakeFiveFootStep(initialTurn),
     "O 5-foot step deveria estar disponível no início do turno."
   );
 
@@ -70,23 +64,14 @@ export function runFiveFootStepTests(): void {
   );
 
   assert(
-    initialTurn.resources.movement ===
-      playerCharacter.movement,
+    initialTurn.resources.movement === playerCharacter.movement,
     "O movimento inicial deveria ser o movimento completo."
   );
 
-  console.log(
-    "✓ Estado inicial"
-  );
-
-  /*
-   * 5-FOOT STEP NÃO CONSOME RECURSOS
-   */
+  console.log("✓ Estado inicial");
 
   const afterFiveFootStep =
-    consumeFiveFootStep(
-      initialTurn
-    );
+    consumeFiveFootStep(initialTurn);
 
   assert(
     !afterFiveFootStep.resources.fiveFootStepAvailable,
@@ -109,53 +94,28 @@ export function runFiveFootStepTests(): void {
   );
 
   assert(
-    afterFiveFootStep.resources.movement ===
-      initialTurn.resources.movement,
+    afterFiveFootStep.resources.movement === initialTurn.resources.movement,
     "O 5-foot step não deveria consumir movimento."
   );
 
-  console.log(
-    "✓ 5-foot step não consome recursos"
-  );
-
-  /*
-   * NÃO PODE REPETIR
-   */
+  console.log("✓ 5-foot step não consome recursos");
 
   assert(
-    !canTakeFiveFootStep(
-      afterFiveFootStep
-    ),
+    !canTakeFiveFootStep(afterFiveFootStep),
     "Não deveria ser possível realizar dois 5-foot steps no mesmo turno."
   );
 
-  console.log(
-    "✓ 5-foot step só pode ocorrer uma vez"
-  );
-
-  /*
-   * 5-FOOT STEP → MOVIMENTO
-   */
+  console.log("✓ 5-foot step só pode ocorrer uma vez");
 
   assert(
-    !canUseMoveAction(
-      afterFiveFootStep
-    ),
+    !canUseMoveAction(afterFiveFootStep),
     "Depois do 5-foot step não deveria ser possível realizar movimento normal."
   );
 
-  console.log(
-    "✓ 5-foot step bloqueia movimento normal"
-  );
-
-  /*
-   * MOVIMENTO → 5-FOOT STEP
-   */
+  console.log("✓ 5-foot step bloqueia movimento normal");
 
   const afterNormalMovement =
-    registerMovement(
-      initialTurn
-    );
+    registerMovement(initialTurn);
 
   assert(
     afterNormalMovement.resources.hasMoved,
@@ -163,24 +123,14 @@ export function runFiveFootStepTests(): void {
   );
 
   assert(
-    !canTakeFiveFootStep(
-      afterNormalMovement
-    ),
+    !canTakeFiveFootStep(afterNormalMovement),
     "Depois do movimento normal o 5-foot step deveria estar indisponível."
   );
 
-  console.log(
-    "✓ Movimento normal bloqueia 5-foot step"
-  );
-
-  /*
-   * ATTACK → 5-FOOT STEP
-   */
+  console.log("✓ Movimento normal bloqueia 5-foot step");
 
   const afterAttack =
-    consumeStandardAction(
-      initialTurn
-    );
+    consumeStandardAction(initialTurn);
 
   assert(
     !afterAttack.resources.action,
@@ -188,16 +138,17 @@ export function runFiveFootStepTests(): void {
   );
 
   assert(
-    canTakeFiveFootStep(
-      afterAttack
-    ),
+    canTakeFiveFootStep(afterAttack),
     "Depois do ataque o 5-foot step deveria continuar disponível."
   );
 
+  assert(
+    !canUseMoveAction(afterAttack),
+    "Depois do ataque não deve ser possível usar movimento normal."
+  );
+
   const attackThenFiveFootStep =
-    consumeFiveFootStep(
-      afterAttack
-    );
+    consumeFiveFootStep(afterAttack);
 
   assert(
     attackThenFiveFootStep.resources.hasTakenFiveFootStep,
@@ -205,23 +156,14 @@ export function runFiveFootStepTests(): void {
   );
 
   assert(
-    !canUseMoveAction(
-      attackThenFiveFootStep
-    ),
+    !canUseMoveAction(attackThenFiveFootStep),
     "Ataque → 5-foot step deveria impedir movimento normal."
   );
 
-  console.log(
-    "✓ Ataque → 5-foot step"
-  );
-
-  /*
-   * MOVIMENTO = 0
-   */
+  console.log("✓ Ataque → somente 5-foot step de 1 casa");
 
   const zeroMovementTurn: Turn = {
     ...initialTurn,
-
     resources: {
       ...initialTurn.resources,
       movement: 0
@@ -229,16 +171,12 @@ export function runFiveFootStepTests(): void {
   };
 
   assert(
-    canTakeFiveFootStep(
-      zeroMovementTurn
-    ),
+    canTakeFiveFootStep(zeroMovementTurn),
     "O 5-foot step deveria continuar disponível com movimento igual a zero."
   );
 
   const zeroMovementAfterStep =
-    consumeFiveFootStep(
-      zeroMovementTurn
-    );
+    consumeFiveFootStep(zeroMovementTurn);
 
   assert(
     zeroMovementAfterStep.resources.movement === 0,
@@ -250,19 +188,8 @@ export function runFiveFootStepTests(): void {
     "O 5-foot step deveria funcionar com movimento igual a zero."
   );
 
-  console.log(
-    "✓ 5-foot step com movimento zero"
-  );
-
-  console.log(
-    "=============================="
-  );
-
-  console.log(
-    "✓ TODOS OS TESTES DO 5-FOOT STEP PASSARAM"
-  );
-
-  console.log(
-    "=============================="
-  );
+  console.log("✓ 5-foot step com movimento zero");
+  console.log("==============================");
+  console.log("✓ TODOS OS TESTES DO 5-FOOT STEP PASSARAM");
+  console.log("==============================");
 }
