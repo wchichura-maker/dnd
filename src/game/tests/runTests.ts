@@ -18,6 +18,10 @@ import {
   runStabilizationTests
 } from "./StabilizationTest";
 
+import {
+  runSavingThrowTests
+} from "./SavingThrowTest";
+
 runRulesTests();
 
 runRangeRulesTests();
@@ -27,3 +31,5 @@ runPathfindingTests();
 runFiveFootStepTests();
 
 runStabilizationTests();
+
+runSavingThrowTests();
