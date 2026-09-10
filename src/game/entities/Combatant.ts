@@ -24,6 +24,12 @@ export type Combatant = Entity & {
 
   animationState: AnimationState;
 
+  /**
+   * Algumas criaturas/efeitos são imunes a acertos críticos.
+   * Elas também são imunes ao efeito de morte do coup de grace.
+   */
+  immuneToCriticalHits?: boolean;
+
   /*
    * Condições atualmente aplicadas.
    *
