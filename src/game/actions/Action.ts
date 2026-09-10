@@ -8,6 +8,12 @@ export type ActionType =
   | "CHARGE"
   | "WITHDRAW"
   | "RUN"
+  | "SURRENDER"
+  | "BLUFF"
+  | "DIPLOMACY"
+  | "INTIMIDATE"
+  | "NEGOTIATE"
+  | "ARREST"
   | "EQUIP"
   | "UNEQUIP"
   | "WAIT";
