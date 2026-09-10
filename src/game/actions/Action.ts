@@ -4,6 +4,7 @@ export type ActionType =
   | "MOVE"
   | "FIVE_FOOT_STEP"
   | "ATTACK"
+  | "COUP_DE_GRACE"
   | "EQUIP"
   | "UNEQUIP"
   | "WAIT";
