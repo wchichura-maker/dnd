@@ -1,4 +1,5 @@
 extends Node2D
+class_name GridMovementController
 
 ## Client-side movement preview.
 ## It mirrors the current TypeScript pathfinding rules until a runtime transport
