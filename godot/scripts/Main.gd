@@ -10,6 +10,7 @@ var player: PlayerController
 var movement_controller: GridMovementController
 var game_core: GameCoreClient
 var entity_nodes: Dictionary[String, Node2D] = {}
+var selected_target_id: String = ""
 
 func _ready() -> void:
 	adapter = GameEntityAdapter.new()
@@ -20,18 +21,27 @@ func _ready() -> void:
 	add_child(game_core)
 	movement_controller.configure(player, game_core)
 	game_core.state_received.connect(_on_core_state_received)
+	game_core.action_resolved.connect(_on_action_resolved)
 	game_core.transport_error.connect(_on_transport_error)
 	entity_nodes[PLAYER_ID] = player
 	$CombatHUD/Panel/Margin/VBox/StartCombat.pressed.connect(_on_start_combat)
+	$CombatHUD/Panel/Margin/VBox/Attack.pressed.connect(_on_attack)
 	$CombatHUD/Panel/Margin/VBox/EndTurn.pressed.connect(_on_end_turn)
-	_set_debug_status("Game Core: conectando...\nClique em uma casa para mover")
+	_set_debug_status("Game Core: conectando...\nClique esquerdo: mover\nClique direito: selecionar alvo")
 	game_core.request_state()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if mouse_event.button_index == MOUSE_BUTTON_RIGHT and mouse_event.pressed:
+			_select_target_at(get_global_mouse_position())
+			get_viewport().set_input_as_handled()
 
 func _on_core_state_received(snapshot: Dictionary) -> void:
 	var state_variant: Variant = snapshot.get("state", {})
 	if not state_variant is Dictionary:
 		return
-	var state: Dictionary = state_variant
+	var state := state_variant as Dictionary
 	_apply_map_state(state)
 	_apply_entity_state(state)
 	_update_combat_hud(state)
@@ -41,18 +51,20 @@ func _apply_map_state(state: Dictionary) -> void:
 	var map_variant: Variant = state.get("map", {})
 	if not map_variant is Dictionary:
 		return
-	var map_data: Dictionary = map_variant
+	var map_data := map_variant as Dictionary
 	map_size = Vector2i(int(map_data.get("width", 26)), int(map_data.get("height", 16)))
 	blocked_tiles.clear()
 	var tiles_variant: Variant = map_data.get("tiles", [])
 	if not tiles_variant is Array:
 		return
-	for y in range((tiles_variant as Array).size()):
-		var row_variant: Variant = (tiles_variant as Array)[y]
+	var rows := tiles_variant as Array
+	for y in range(rows.size()):
+		var row_variant: Variant = rows[y]
 		if not row_variant is Array:
 			continue
-		for x in range((row_variant as Array).size()):
-			var tile_variant: Variant = (row_variant as Array)[x]
+		var row := row_variant as Array
+		for x in range(row.size()):
+			var tile_variant: Variant = row[x]
 			if tile_variant is Dictionary and not bool((tile_variant as Dictionary).get("walkable", true)):
 				blocked_tiles[Vector2i(x, y)] = true
 
@@ -64,7 +76,7 @@ func _apply_entity_state(state: Dictionary) -> void:
 	for entity_variant in entities_variant as Array:
 		if not entity_variant is Dictionary:
 			continue
-		var entity: Dictionary = entity_variant
+		var entity := entity_variant as Dictionary
 		var entity_id := str(entity.get("id", ""))
 		if entity_id.is_empty():
 			continue
@@ -84,6 +96,9 @@ func _apply_entity_state(state: Dictionary) -> void:
 				adapter.bind_entity(player, snapshot)
 		else:
 			adapter.bind_entity(node, snapshot)
+			var view := node.get_node_or_null("EntityView") as EntityView
+			if view:
+				view.selected = entity_id == selected_target_id
 	_cleanup_removed_entities(active_ids)
 
 func _create_entity_snapshot(entity: Dictionary) -> EntitySnapshot:
@@ -116,34 +131,78 @@ func _cleanup_removed_entities(active_ids: Dictionary[String, bool]) -> void:
 			node.queue_free()
 		entity_nodes.erase(entity_id)
 
+func _select_target_at(world_position: Vector2) -> void:
+	var clicked_tile := Vector2i(floori(world_position.x / TILE_SIZE), floori(world_position.y / TILE_SIZE))
+	var found_id := ""
+	for entity_id in entity_nodes.keys():
+		if entity_id == PLAYER_ID:
+			continue
+		var node := entity_nodes[entity_id] as Node2D
+		if not is_instance_valid(node):
+			continue
+		var view := node.get_node_or_null("EntityView") as EntityView
+		if view and view.snapshot.grid_position == clicked_tile:
+			found_id = entity_id
+			break
+	selected_target_id = found_id
+	for entity_id in entity_nodes.keys():
+		if entity_id == PLAYER_ID:
+			continue
+		var node := entity_nodes[entity_id] as Node2D
+		var view := node.get_node_or_null("EntityView") as EntityView
+		if view:
+			view.selected = entity_id == selected_target_id
+	_update_target_label()
+
+func _update_target_label() -> void:
+	var label: Label = $CombatHUD/Panel/Margin/VBox/Target
+	if selected_target_id.is_empty():
+		label.text = "Alvo: nenhum"
+		return
+	var node := entity_nodes.get(selected_target_id) as Node2D
+	var view := node.get_node_or_null("EntityView") as EntityView if is_instance_valid(node) else null
+	label.text = "Alvo: %s" % (view.snapshot.name if view else selected_target_id)
+
+func _on_start_combat() -> void:
+	game_core.start_combat()
+
+func _on_attack() -> void:
+	if selected_target_id.is_empty():
+		return
+	game_core.request_action({"type": "ATTACK", "actorId": PLAYER_ID, "targetId": selected_target_id})
+
+func _on_end_turn() -> void:
+	game_core.end_turn()
+
+func _on_action_resolved(action_result: Dictionary, _snapshot: Dictionary) -> void:
+	var message := str(action_result.get("message", ""))
+	if not message.is_empty():
+		_set_debug_status("Game Core: %s" % message)
+
 func _update_combat_hud(state: Dictionary) -> void:
 	var mode := str(state.get("mode", "EXPLORATION"))
-	var combat: Dictionary = state.get("combat", {}) as Dictionary
-	var turn_order: Array = combat.get("turnOrder", []) as Array
+	var combat := state.get("combat", {}) as Dictionary
+	var turn_order := combat.get("turnOrder", []) as Array
 	var current_index := int(combat.get("currentTurnIndex", 0))
-	var active_id := ""
-	if current_index >= 0 and current_index < turn_order.size():
-		active_id = str(turn_order[current_index])
+	var active_id := str(turn_order[current_index]) if current_index >= 0 and current_index < turn_order.size() else ""
 	var active_name := active_id
-	for entity_variant in state.get("entities", []) as Array:
-		if entity_variant is Dictionary and str((entity_variant as Dictionary).get("id", "")) == active_id:
-			active_name = str((entity_variant as Dictionary).get("name", active_id))
 	var player_entity: Dictionary = {}
 	for entity_variant in state.get("entities", []) as Array:
-		if entity_variant is Dictionary and str((entity_variant as Dictionary).get("id", "")) == PLAYER_ID:
-			player_entity = entity_variant as Dictionary
+		if not entity_variant is Dictionary:
+			continue
+		var entity := entity_variant as Dictionary
+		if str(entity.get("id", "")) == active_id:
+			active_name = str(entity.get("name", active_id))
+		if str(entity.get("id", "")) == PLAYER_ID:
+			player_entity = entity
 	var movement := int(player_entity.get("movement", 0))
 	var hp := int(player_entity.get("hp", 0))
 	var max_hp := int(player_entity.get("maxHp", 0))
 	$CombatHUD/Panel/Margin/VBox/Status.text = "Modo: %s\nTurno: %s\nKael: HP %d/%d  Movimento %d" % [mode, active_name if not active_name.is_empty() else "—", hp, max_hp, movement]
 	$CombatHUD/Panel/Margin/VBox/StartCombat.disabled = mode != "EXPLORATION"
+	$CombatHUD/Panel/Margin/VBox/Attack.disabled = mode != "COMBAT" or active_id != PLAYER_ID or selected_target_id.is_empty()
 	$CombatHUD/Panel/Margin/VBox/EndTurn.disabled = mode == "EXPLORATION" or active_id != PLAYER_ID
-
-func _on_start_combat() -> void:
-	game_core.start_combat()
-
-func _on_end_turn() -> void:
-	game_core.end_turn()
+	_update_target_label()
 
 func _grid_to_world(grid_position: Vector2i) -> Vector2:
 	return Vector2(grid_position) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
