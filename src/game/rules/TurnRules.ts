@@ -14,10 +14,20 @@ export function canUseStandardAction(
  *
  * A ação padrão pode ser convertida em uma
  * segunda ação de movimento.
+ *
+ * Depois de realizar um 5-foot step,
+ * movimento normal não é mais permitido
+ * neste turno.
  */
 export function canUseMoveAction(
   turn: Turn
 ): boolean {
+  if (
+    turn.resources.hasTakenFiveFootStep
+  ) {
+    return false;
+  }
+
   return (
     turn.resources.moveAction ||
     turn.resources.action
@@ -41,13 +51,21 @@ export function canUseFullRoundAction(
 /**
  * Verifica se o passo de ajuste de 1,5 m
  * está disponível.
+ *
+ * O passo:
+ * - não consome ação padrão;
+ * - não consome ação de movimento;
+ * - não consome movimento;
+ * - só pode ocorrer uma vez;
+ * - não pode ocorrer depois de movimento normal.
  */
 export function canTakeFiveFootStep(
   turn: Turn
 ): boolean {
   return (
     turn.resources.fiveFootStepAvailable &&
-    !turn.resources.hasMoved
+    !turn.resources.hasMoved &&
+    !turn.resources.hasTakenFiveFootStep
   );
 }
 
@@ -70,10 +88,10 @@ export function consumeStandardAction(
  * Consome uma ação de movimento.
  *
  * Primeira movimentação:
- *   usa a ação de movimento.
+ * usa a ação de movimento.
  *
  * Segunda movimentação:
- *   usa a ação padrão.
+ * usa a ação padrão.
  */
 export function consumeMoveAction(
   turn: Turn
@@ -122,10 +140,10 @@ export function consumeFullRoundAction(
 }
 
 /**
- * Registra que houve deslocamento real.
+ * Registra que houve movimento normal.
  *
- * Depois que o personagem se deslocou,
- * o passo de ajuste deixa de estar disponível.
+ * Depois de movimento normal, o 5-foot step
+ * não pode mais ser realizado.
  */
 export function registerMovement(
   turn: Turn
@@ -141,10 +159,15 @@ export function registerMovement(
 }
 
 /**
- * Consome o passo de ajuste.
+ * Consome o 5-foot step.
  *
- * O passo não consome ação padrão nem
- * ação de movimento.
+ * O passo não consome:
+ * - ação padrão;
+ * - ação de movimento;
+ * - movimento restante.
+ *
+ * Porém, impede movimento normal posterior
+ * no mesmo turno.
  */
 export function consumeFiveFootStep(
   turn: Turn
@@ -159,19 +182,14 @@ export function consumeFiveFootStep(
     ...turn,
     resources: {
       ...turn.resources,
-      fiveFootStepAvailable: false
+      fiveFootStepAvailable: false,
+      hasTakenFiveFootStep: true
     }
   };
 }
+
 /**
  * Cria os recursos de um novo turno.
- *
- * O personagem recebe novamente:
- * - ação padrão
- * - ação de movimento
- * - ações livres
- * - passo de ajuste
- * - deslocamento completo
  */
 export function resetTurn(
   turn: Turn,
@@ -187,6 +205,7 @@ export function resetTurn(
       freeActions: true,
       fiveFootStepAvailable: true,
       hasMoved: false,
+      hasTakenFiveFootStep: false,
       movement
     }
   };

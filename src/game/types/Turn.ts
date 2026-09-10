@@ -36,6 +36,12 @@ export type ActionResources = {
   hasMoved: boolean;
 
   /**
+   * Indica explicitamente se o passo de ajuste
+   * já foi utilizado neste turno.
+   */
+  hasTakenFiveFootStep: boolean;
+
+  /**
    * Distância de movimento ainda disponível
    * na ação de movimento atual.
    */

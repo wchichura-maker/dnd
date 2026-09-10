@@ -12,36 +12,18 @@ export function createTurn(
       character.id,
 
     resources: {
-      /**
-       * Ação padrão disponível.
-       */
       action: true,
 
-      /**
-       * Ação de movimento disponível.
-       */
       moveAction: true,
 
-      /**
-       * Ações livres podem ser realizadas
-       * conforme as regras de cada ação.
-       */
       freeActions: true,
 
-      /**
-       * O passo de ajuste está disponível
-       * no início do turno.
-       */
       fiveFootStepAvailable: true,
 
-      /**
-       * Nenhum movimento foi realizado ainda.
-       */
       hasMoved: false,
 
-      /**
-       * Deslocamento disponível.
-       */
+      hasTakenFiveFootStep: false,
+
       movement:
         character.movement
     }

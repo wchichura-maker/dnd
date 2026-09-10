@@ -33,8 +33,10 @@ import {
 import {
   canUseStandardAction,
   canUseMoveAction,
+  canTakeFiveFootStep,
   consumeStandardAction,
   consumeMoveAction,
+  consumeFiveFootStep,
   registerMovement
 } from "../rules/TurnRules";
 
@@ -150,6 +152,7 @@ export class GameEngine {
           freeActions: false,
           fiveFootStepAvailable: false,
           hasMoved: false,
+          hasTakenFiveFootStep: false,
           movement: 0
         }
       },
@@ -850,285 +853,286 @@ export class GameEngine {
    */
 
   private executeMove(
-    action: GameAction
-  ): ActionResult {
+  action: GameAction
+): ActionResult {
 
-    if (
-      !action.destination
-    ) {
-      return {
-        success: false,
-        message:
-          "Destino não informado."
-      };
-    }
+  if (
+    !action.destination
+  ) {
+    return {
+      success: false,
+      message:
+        "Destino não informado."
+    };
+  }
 
+  const actor =
+    this.getEntity(
+      action.actorId
+    );
 
-    const actor =
-      this.getEntity(
-        action.actorId
-      );
+  if (!actor) {
+    return {
+      success: false,
+      message:
+        "Entidade não encontrada."
+    };
+  }
 
+  if (
+    !canMove(actor)
+  ) {
+    return {
+      success: false,
+      message:
+        `${actor.name} não pode se mover neste estado.`
+    };
+  }
 
-    if (!actor) {
-      return {
-        success: false,
-        message:
-          "Entidade não encontrada."
-      };
-    }
-
-
-    if (
-      !canMove(actor)
-    ) {
-      return {
-        success: false,
-        message:
-          `${actor.name} não pode se mover neste estado.`
-      };
-    }
-
-
-    const hasRemainingMovement =
+  /*
+   * O 5-foot step é avaliado antes
+   * do movimento restante porque ele
+   * não consome deslocamento.
+   */
+  const isFiveFootStep =
+    canTakeFiveFootStep(
       this.state.turn
-        .resources
-        .movement > 0;
+    );
 
-    /*
-     * PASSO DE AJUSTE
-     *
-     * Se a ação padrão já foi usada e o passo de ajuste
-     * ainda está disponível, o deslocamento permitido é
-     * exatamente 5 pés (1 casa). O passo não consome a
-     * ação de movimento nem o deslocamento restante.
-     */
-
-    const isFiveFootStep =
-      !this.state.turn.resources.action &&
-      this.state.turn.resources.fiveFootStepAvailable;
-
-    const canStartMovement =
-      isFiveFootStep
-        ? true
-        : canUseMoveAction(
-            this.state.turn
-          );
-
-    if (
-      !hasRemainingMovement ||
-      !canStartMovement
-    ) {
-      return {
-        success: false,
-        message:
-          "Nenhum movimento disponível."
-      };
-    }
-
-
-    const destination =
-      action.destination;
-
-
-    if (
-      destination.x ===
-        actor.position.x &&
-      destination.y ===
-        actor.position.y
-    ) {
-      return {
-        success: false,
-        message:
-          "Destino igual à posição atual."
-      };
-    }
-
-
-    const occupyingEntity =
-      getEntityAtPosition(
-        destination,
-        this.state.entities,
-        actor.id
-      );
-
-
-    if (
-      occupyingEntity
-    ) {
-      return {
-        success: false,
-
-        message:
-          `Movimento bloqueado. ${occupyingEntity.name} ocupa esta casa.`
-      };
-    }
-
-
-    const pathResult =
-      findPath(
-        this.state.map,
-        this.state.entities,
-        actor.position,
-        destination,
-        actor.id
-      );
-
-
-    if (
-      !pathResult
-    ) {
-      return {
-        success: false,
-
-        message:
-          "Não existe caminho válido até o destino."
-      };
-    }
-
-
-    const distance =
-      pathResult.cost;
-
-    if (
-      isFiveFootStep &&
-      distance > 1
-    ) {
-      return {
-        success: false,
-        message:
-          "O passo de ajuste permite somente 1 casa."
-      };
-    }
-
-    if (
-      distance >
-      this.state.turn.resources
-        .movement
-    ) {
-      return {
-        success: false,
-
-        message:
-          `Movimento insuficiente. Caminho custa ${distance}.`
-      };
-    }
-
-    const remainingMovement =
-      isFiveFootStep
-        ? this.state.turn.resources.movement
-        : this.state.turn.resources.movement - distance;
-
-
-    const updatedEntities =
-      this.state.entities.map(
-        entity => {
-
-          if (
-            entity.id !==
-            actor.id
-          ) {
-            return entity;
-          }
-
-
-          return {
-            ...entity,
-
-            position:
-              destination
-          };
-        }
-      );
-
-
-    let updatedTurn =
-      this.state.turn;
-
-
-    if (
-      isFiveFootStep
-    ) {
-
-      updatedTurn = {
-        ...updatedTurn,
-
-        resources: {
-          ...updatedTurn.resources,
-
-          fiveFootStepAvailable: false
-        }
-      };
-
-    } else {
-
-      if (
-        this.state.turn
-          .resources
-          .moveAction
-      ) {
-
-        updatedTurn =
-          consumeMoveAction(
-            updatedTurn
-          );
-      }
-
-      updatedTurn =
-        registerMovement(
-          updatedTurn
+  /*
+   * Movimento normal só pode começar
+   * se existir uma ação de movimento.
+   *
+   * Depois de um 5-foot step,
+   * canUseMoveAction() retorna false.
+   */
+  const canStartMovement =
+    isFiveFootStep
+      ? true
+      : canUseMoveAction(
+          this.state.turn
         );
 
-      updatedTurn = {
-        ...updatedTurn,
-
-        resources: {
-          ...updatedTurn.resources,
-
-          movement:
-            remainingMovement
-        }
-      };
-    }
-
-
-    this.state = {
-      ...this.state,
-
-      entities:
-        updatedEntities,
-
-      turn:
-        updatedTurn,
-
-      logs: [
-        ...this.state.logs,
-
-        `${actor.name} percorreu ${pathResult.path.length} casa(s).`,
-
-        `Custo do movimento: ${distance}.`,
-
-        `Movimento restante: ${remainingMovement}.`
-      ]
-    };
-
-
+  if (
+    !canStartMovement
+  ) {
     return {
-      success: true,
-
+      success: false,
       message:
-        `${actor.name} moveu ${distance} quadrado(s).`,
+        "Nenhum movimento disponível."
+    };
+  }
 
-      data: {
-        distance,
+  /*
+   * Apenas movimento normal depende
+   * do movimento restante.
+   */
+  if (
+    !isFiveFootStep &&
+    this.state.turn.resources.movement <= 0
+  ) {
+    return {
+      success: false,
+      message:
+        "Nenhum movimento disponível."
+    };
+  }
 
-        remainingMovement,
+  const destination =
+    action.destination;
 
-        position:
-          destination
+  if (
+    destination.x ===
+      actor.position.x &&
+    destination.y ===
+      actor.position.y
+  ) {
+    return {
+      success: false,
+      message:
+        "Destino igual à posição atual."
+    };
+  }
+
+  const occupyingEntity =
+    getEntityAtPosition(
+      destination,
+      this.state.entities,
+      actor.id
+    );
+
+  if (
+    occupyingEntity
+  ) {
+    return {
+      success: false,
+      message:
+        `Movimento bloqueado. ${occupyingEntity.name} ocupa esta casa.`
+    };
+  }
+
+  const pathResult =
+    findPath(
+      this.state.map,
+      this.state.entities,
+      actor.position,
+      destination,
+      actor.id
+    );
+
+  if (
+    !pathResult
+  ) {
+    return {
+      success: false,
+      message:
+        "Não existe caminho válido até o destino."
+    };
+  }
+
+  const distance =
+    pathResult.cost;
+
+  /*
+   * 5-foot step precisa ser exatamente
+   * uma casa de custo.
+   */
+  if (
+    isFiveFootStep &&
+    distance !== 1
+  ) {
+    return {
+      success: false,
+      message:
+        "O passo de ajuste permite somente 1 casa."
+    };
+  }
+
+  /*
+   * Movimento normal não pode ultrapassar
+   * o deslocamento restante.
+   */
+  if (
+    !isFiveFootStep &&
+    distance >
+      this.state.turn.resources.movement
+  ) {
+    return {
+      success: false,
+      message:
+        `Movimento insuficiente. Caminho custa ${distance}.`
+    };
+  }
+
+  /*
+   * O 5-foot step preserva o movimento restante.
+   */
+  const remainingMovement =
+    isFiveFootStep
+      ? this.state.turn.resources.movement
+      : this.state.turn.resources.movement - distance;
+
+  const updatedEntities =
+    this.state.entities.map(
+      entity => {
+
+        if (
+          entity.id !==
+          actor.id
+        ) {
+          return entity;
+        }
+
+        return {
+          ...entity,
+          position:
+            destination
+        };
+      }
+    );
+
+  let updatedTurn =
+    this.state.turn;
+
+  if (
+    isFiveFootStep
+  ) {
+
+    /*
+     * O 5-foot step consome apenas
+     * o próprio recurso.
+     */
+    updatedTurn =
+      consumeFiveFootStep(
+        updatedTurn
+      );
+
+  } else {
+
+    /*
+     * Movimento normal consome
+     * ação de movimento.
+     *
+     * Caso ela já tenha sido usada,
+     * consumeMoveAction() utiliza
+     * a ação padrão.
+     */
+    updatedTurn =
+      consumeMoveAction(
+        updatedTurn
+      );
+
+    updatedTurn =
+      registerMovement(
+        updatedTurn
+      );
+
+    updatedTurn = {
+      ...updatedTurn,
+      resources: {
+        ...updatedTurn.resources,
+        movement:
+          remainingMovement
       }
     };
   }
+
+  this.state = {
+    ...this.state,
+
+    entities:
+      updatedEntities,
+
+    turn:
+      updatedTurn,
+
+    logs: [
+      ...this.state.logs,
+
+      `${actor.name} percorreu ${pathResult.path.length} casa(s).`,
+
+      `Custo do movimento: ${distance}.`,
+
+      `Movimento restante: ${remainingMovement}.`
+    ]
+  };
+
+  return {
+    success: true,
+
+    message:
+      `${actor.name} moveu ${distance} quadrado(s).`,
+
+    data: {
+      distance,
+
+      remainingMovement,
+
+      position:
+        destination
+    }
+  };
+}
 
 
   /*

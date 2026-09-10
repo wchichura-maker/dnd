@@ -10,8 +10,14 @@ import {
   runPathfindingTests
 } from "./PathfindingTest";
 
+import {
+  runFiveFootStepTests
+} from "./FiveFootStepTest";
+
 runRulesTests();
 
 runRangeRulesTests();
 
 runPathfindingTests();
+
+runFiveFootStepTests();
