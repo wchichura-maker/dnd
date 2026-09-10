@@ -18,14 +18,22 @@ import { getCombatEndMessage } from "../rules/CombatResolutionRules";
 
 export class GameEngineCombatExtensions extends GameEngine {
   private readonly opportunityAttacksUsed = new Set<string>();
+  private readonly chargeAcPenaltyActive = new Set<string>();
 
   override startCombat(combatantIds?: string[]): ActionResult {
     this.opportunityAttacksUsed.clear();
+    this.chargeAcPenaltyActive.clear();
     return super.startCombat(combatantIds);
   }
 
   override endCombat(): ActionResult {
+    const state = this.getState();
+    const restoredEntities = state.entities.map(entity => this.chargeAcPenaltyActive.has(entity.id)
+      ? { ...entity, dnd: { ...entity.dnd, defense: { ...entity.dnd.defense, miscBonus: entity.dnd.defense.miscBonus + 2 } } }
+      : entity);
+    this.chargeAcPenaltyActive.clear();
     this.opportunityAttacksUsed.clear();
+    this.setState({ ...state, entities: restoredEntities });
     return super.endCombat();
   }
 
@@ -39,9 +47,7 @@ export class GameEngineCombatExtensions extends GameEngine {
         if (!this.isHostile(this.getState(), first.id, second.id)) continue;
         if (!this.canMeaningfullyAttack(first, second) && !this.canMeaningfullyAttack(second, first)) continue;
         const result = this.startCombat([first.id, second.id]);
-        if (result.success) {
-          this.setState({ ...this.getState(), logs: [...this.getState().logs, `${first.name} e ${second.name} entraram em combate automaticamente.`] });
-        }
+        if (result.success) this.setState({ ...this.getState(), logs: [...this.getState().logs, `${first.name} e ${second.name} entraram em combate automaticamente.`] });
         return result;
       }
     }
@@ -83,6 +89,18 @@ export class GameEngineCombatExtensions extends GameEngine {
     const currentIndex = before.combat.currentTurnIndex;
     const result = super.endTurn();
     if (result.success && lastIndex >= 0 && currentIndex >= lastIndex) this.opportunityAttacksUsed.clear();
+
+    if (result.success) {
+      const nextEntityId = this.getState().turn.characterId;
+      if (this.chargeAcPenaltyActive.has(nextEntityId)) {
+        const entity = this.getEntity(nextEntityId);
+        if (entity) {
+          this.setState({ ...this.getState(), entities: this.getState().entities.map(item => item.id === nextEntityId ? { ...item, dnd: { ...item.dnd, defense: { ...item.dnd.defense, miscBonus: item.dnd.defense.miscBonus + 2 } } } : item), logs: [...this.getState().logs, `${entity.name}: penalidade de CA da investida terminou.`] });
+        }
+        this.chargeAcPenaltyActive.delete(nextEntityId);
+      }
+    }
+
     return result;
   }
 
@@ -118,7 +136,6 @@ export class GameEngineCombatExtensions extends GameEngine {
     if (!target) return { success: false, message: "Alvo não encontrado." };
     if (target.id === actor.id) return { success: false, message: "Uma entidade não pode investir contra si mesma." };
     if (isDead(target)) return { success: false, message: `${target.name} está morto e não pode ser alvo da investida.` };
-
     const weapon = actor.dnd.equipment.weapon;
     if (!weapon || !weapon.melee) return { success: false, message: "Investida requer uma arma de ataque corpo a corpo." };
 
@@ -126,21 +143,17 @@ export class GameEngineCombatExtensions extends GameEngine {
     if (!validation.valid) return { success: false, message: validation.message };
     const occupyingEntity = getEntityAtPosition(action.destination, state.entities, actor.id);
     if (occupyingEntity) return { success: false, message: `Investida bloqueada. ${occupyingEntity.name} ocupa a casa de destino.` };
-
     const pathResult = findPath(state.map, state.entities, actor.position, action.destination, actor.id);
     if (!pathResult) return { success: false, message: "Não existe caminho válido para a investida." };
     if (pathResult.cost < 2) return { success: false, message: "A investida exige pelo menos 10 pés de deslocamento." };
     if (pathResult.cost > validation.maxMovement) return { success: false, message: `Investida excede o deslocamento máximo de ${validation.maxMovement} casas.` };
-
     const steps = pathResult.path.length > 0 && pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y ? pathResult.path : [actor.position, ...pathResult.path];
     if (!isStraightLinePath(steps)) return { success: false, message: "A investida deve seguir uma linha reta sem contornar obstáculos." };
-
     const destinationEntity = { ...actor, position: action.destination };
     if (!isWithinWeaponRange(destinationEntity, target)) return { success: false, message: "A investida deve terminar em uma posição de onde o alvo possa ser atacado." };
 
     const originalTurn = state.turn;
     this.setState({ ...this.getState(), turn: { ...this.getState().turn, resources: { ...this.getState().turn.resources, movement: getChargeMovement(actor.movement) } } });
-
     const opportunityResult = this.resolveOpportunityAttacksBeforeMove({ ...action, type: "MOVE" });
     if (opportunityResult) {
       this.setState({ ...this.getState(), turn: originalTurn });
@@ -157,26 +170,13 @@ export class GameEngineCombatExtensions extends GameEngine {
     const movedTarget = this.getEntity(target.id);
     if (!movedActor || !movedTarget) return { success: false, message: "Estado inválido após o movimento da investida." };
 
-    const chargedActor: Combatant = {
-      ...movedActor,
-      dnd: {
-        ...movedActor.dnd,
-        defense: {
-          ...movedActor.dnd.defense,
-          miscBonus: movedActor.dnd.defense.miscBonus - 2
-        }
-      }
-    };
-
-    this.setState({
-      ...this.getState(),
-      entities: this.getState().entities.map(entity => entity.id === chargedActor.id ? chargedActor : entity)
-    });
+    const chargedActor: Combatant = { ...movedActor, dnd: { ...movedActor.dnd, defense: { ...movedActor.dnd.defense, miscBonus: movedActor.dnd.defense.miscBonus - 2 } } };
+    this.setState({ ...this.getState(), entities: this.getState().entities.map(entity => entity.id === chargedActor.id ? chargedActor : entity) });
+    this.chargeAcPenaltyActive.add(chargedActor.id);
 
     const attackResult = attack(chargedActor, movedTarget, { attackBonus: 2 });
     const targetAfterAttack = attackResult.hit ? applyDamage(movedTarget, attackResult.damage) : movedTarget;
     const turnAfterCharge = consumeFullRoundAction(this.getState().turn);
-
     const attackLog = [
       `${chargedActor.name} realizou uma INVESTIDA contra ${movedTarget.name}.`,
       `D20: ${attackResult.roll} + ${attackResult.attackBonus} = ${attackResult.total}.`,
@@ -187,37 +187,22 @@ export class GameEngineCombatExtensions extends GameEngine {
       `${chargedActor.name} recebe -2 na CA até o início do próximo turno.`
     ].filter(Boolean);
 
-    this.setState({
-      ...this.getState(),
-      entities: this.getState().entities.map(entity => entity.id === targetAfterAttack.id ? targetAfterAttack : entity),
-      turn: turnAfterCharge,
-      logs: [...this.getState().logs, ...attackLog]
-    });
+    this.setState({ ...this.getState(), entities: this.getState().entities.map(entity => entity.id === targetAfterAttack.id ? targetAfterAttack : entity), turn: turnAfterCharge, logs: [...this.getState().logs, ...attackLog] });
 
     if (isDead(targetAfterAttack)) {
       const combatEnded = this.shouldEndCombatAfterDeath();
       if (combatEnded) this.resolveCombat("DEATH");
-      return {
-        success: true,
-        message: combatEnded ? `${movedTarget.name} morreu pela investida. ${getCombatEndMessage("DEATH")}` : `${movedTarget.name} morreu pela investida.`,
-        data: { charge: true, chargeAttackBonus: 2, chargeAcPenalty: -2, position: action.destination, distance: pathResult.cost, damage: attackResult.damage, roll: attackResult.roll, attackBonus: attackResult.attackBonus, total: attackResult.total, targetDied: true, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined }
-      };
+      return { success: true, message: combatEnded ? `${movedTarget.name} morreu pela investida. ${getCombatEndMessage("DEATH")}` : `${movedTarget.name} morreu pela investida.`, data: { charge: true, chargeAttackBonus: 2, chargeAcPenalty: -2, position: action.destination, distance: pathResult.cost, damage: attackResult.damage, roll: attackResult.roll, attackBonus: attackResult.attackBonus, total: attackResult.total, targetDied: true, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined } };
     }
 
-    return {
-      success: true,
-      message: `${chargedActor.name} realizou uma INVESTIDA contra ${movedTarget.name}. ${attackResult.hit ? `Acerto por ${attackResult.total} contra CA ${attackResult.targetArmorClass}, causando ${attackResult.damage} de dano.` : `Errou o ataque (${attackResult.total} contra CA ${attackResult.targetArmorClass}).`}`,
-      data: { charge: true, chargeAttackBonus: 2, chargeAcPenalty: -2, position: action.destination, distance: pathResult.cost, damage: attackResult.damage, roll: attackResult.roll, attackBonus: attackResult.attackBonus, total: attackResult.total, targetId: movedTarget.id }
-    };
+    return { success: true, message: `${chargedActor.name} realizou uma INVESTIDA contra ${movedTarget.name}. ${attackResult.hit ? `Acerto por ${attackResult.total} contra CA ${attackResult.targetArmorClass}, causando ${attackResult.damage} de dano.` : `Errou o ataque (${attackResult.total} contra CA ${attackResult.targetArmorClass}).`}`, data: { charge: true, chargeAttackBonus: 2, chargeAcPenalty: -2, position: action.destination, distance: pathResult.cost, damage: attackResult.damage, roll: attackResult.roll, attackBonus: attackResult.attackBonus, total: attackResult.total, targetId: movedTarget.id } };
   }
 
   private shouldEndCombatAfterDeath(): boolean {
     const state = this.getState();
     const living = state.entities.filter(entity => !isDead(entity));
     for (let index = 0; index < living.length; index++) {
-      for (let otherIndex = index + 1; otherIndex < living.length; otherIndex++) {
-        if (this.isHostile(state, living[index].id, living[otherIndex].id)) return false;
-      }
+      for (let otherIndex = index + 1; otherIndex < living.length; otherIndex++) if (this.isHostile(state, living[index].id, living[otherIndex].id)) return false;
     }
     return true;
   }
@@ -232,37 +217,23 @@ export class GameEngineCombatExtensions extends GameEngine {
     if (!pathResult || pathResult.cost > state.turn.resources.movement) return null;
     const steps = pathResult.path.length > 0 && pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y ? pathResult.path : [actor.position, ...pathResult.path];
     const opportunityAttacks: NonNullable<NonNullable<ActionResult["data"]>["opportunityAttacks"]> = [];
-
     for (const defender of state.entities) {
       if (defender.id === actor.id || isDead(defender) || !canAct(defender)) continue;
       if (this.opportunityAttacksUsed.has(defender.id)) continue;
       if (!this.isHostile(state, defender.id, actor.id)) continue;
       const weapon = defender.dnd.equipment.weapon;
       if (!weapon || !weapon.melee) continue;
-      const provokes = steps.slice(0, -1).some((from, index) => {
-        const to = steps[index + 1];
-        const before = this.distance(defender.position, from);
-        const after = this.distance(defender.position, to);
-        return before <= weapon.range && after > weapon.range;
-      });
+      const provokes = steps.slice(0, -1).some((from, index) => { const to = steps[index + 1]; return this.distance(defender.position, from) <= weapon.range && this.distance(defender.position, to) > weapon.range; });
       if (!provokes) continue;
-
       this.opportunityAttacksUsed.add(defender.id);
       const result = attack(defender, actor);
       const newHp = result.hit ? actor.hp - result.damage : actor.hp;
       const updatedActor = { ...actor, hp: newHp };
       opportunityAttacks.push({ attackerId: defender.id, targetId: actor.id, roll: result.roll, attackBonus: result.attackBonus, total: result.total, critical: result.critical, hit: result.hit, damage: result.damage, hpBefore: actor.hp, hpAfter: newHp });
-      this.setState({
-        ...this.getState(),
-        entities: this.getState().entities.map(entity => entity.id === actor.id ? updatedActor : entity),
-        logs: [...this.getState().logs, `${defender.name} realizou um ATAQUE DE OPORTUNIDADE contra ${actor.name}.`, `D20: ${result.roll} + ${result.attackBonus} = ${result.total}.`, `CA de ${actor.name}: ${getArmorClass(actor)}.`, result.critical ? "CRÍTICO!" : "", result.hit ? `ACERTO. Dano: ${result.damage}. ${actor.name}: ${actor.hp} → ${newHp} HP.` : "ERRO.", `Estado de ${actor.name}: ${getHitPointState(updatedActor)}.`].filter(Boolean)
-      });
+      this.setState({ ...this.getState(), entities: this.getState().entities.map(entity => entity.id === actor.id ? updatedActor : entity), logs: [...this.getState().logs, `${defender.name} realizou um ATAQUE DE OPORTUNIDADE contra ${actor.name}.`, `D20: ${result.roll} + ${result.attackBonus} = ${result.total}.`, `CA de ${actor.name}: ${getArmorClass(actor)}.`, result.critical ? "CRÍTICO!" : "", result.hit ? `ACERTO. Dano: ${result.damage}. ${actor.name}: ${actor.hp} → ${newHp} HP.` : "ERRO.", `Estado de ${actor.name}: ${getHitPointState(updatedActor)}.`].filter(Boolean) });
       if (isDead(updatedActor)) {
         let combatEnded = false;
-        if (this.shouldEndCombatAfterDeath()) {
-          this.resolveCombat("DEATH");
-          combatEnded = true;
-        }
+        if (this.shouldEndCombatAfterDeath()) { this.resolveCombat("DEATH"); combatEnded = true; }
         return { success: false, message: combatEnded ? `${actor.name} morreu por um ataque de oportunidade. ${getCombatEndMessage("DEATH")}` : `${actor.name} morreu por um ataque de oportunidade e não pode concluir o movimento.`, data: { opportunityAttacks, targetDied: true, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined } };
       }
     }
@@ -312,13 +283,7 @@ export class GameEngineCombatExtensions extends GameEngine {
     const targetAfterCoup: Combatant = coupResult.targetDied ? { ...targetAfterDamage, hp: -10 } : targetAfterDamage;
     const nextTurn = consumeFullRoundAction(state.turn);
     const turnOrder = coupResult.targetDied ? state.combat.turnOrder.filter(id => id !== target.id) : state.combat.turnOrder;
-    this.setState({
-      ...state,
-      entities: state.entities.map(entity => entity.id === target.id ? targetAfterCoup : entity),
-      combat: { ...state.combat, turnOrder, currentTurnIndex: turnOrder.length > 0 ? Math.min(state.combat.currentTurnIndex, turnOrder.length - 1) : 0 },
-      turn: nextTurn,
-      logs: [...state.logs, `${activeEntity.name} executou Golpe de Misericórdia contra ${target.name}.`, `Dano: ${damageRoll} + ${strengthModifier} = ${baseDamage} × ${weapon.criticalMultiplier} = ${damage}.`, `Fortitude: ${fortitudeRoll} + ${coupResult.fortitude?.bonus ?? 0} = ${coupResult.fortitude?.total ?? 0} contra CD ${coupResult.fortitude?.dc ?? 0}.`, coupResult.message]
-    });
+    this.setState({ ...state, entities: state.entities.map(entity => entity.id === target.id ? targetAfterCoup : entity), combat: { ...state.combat, turnOrder, currentTurnIndex: turnOrder.length > 0 ? Math.min(state.combat.currentTurnIndex, turnOrder.length - 1) : 0 }, turn: nextTurn, logs: [...state.logs, `${activeEntity.name} executou Golpe de Misericórdia contra ${target.name}.`, `Dano: ${damageRoll} + ${strengthModifier} = ${baseDamage} × ${weapon.criticalMultiplier} = ${damage}.`, `Fortitude: ${fortitudeRoll} + ${coupResult.fortitude?.bonus ?? 0} = ${coupResult.fortitude?.total ?? 0} contra CD ${coupResult.fortitude?.dc ?? 0}.`, coupResult.message] });
     if (coupResult.targetDied && this.shouldEndCombatAfterDeath()) this.resolveCombat("DEATH");
     return { success: true, message: coupResult.targetDied ? `${target.name} morreu pelo Golpe de Misericórdia.` : `${target.name} sobreviveu ao Golpe de Misericórdia.`, data: { damage, critical: true, targetId: target.id, targetDied: coupResult.targetDied, damageRoll, fortitudeRoll, fortitude: coupResult.fortitude, combatEnded: coupResult.targetDied && this.isExplorationMode(), combatEndReason: coupResult.targetDied && this.isExplorationMode() ? "DEATH" : undefined } };
   }
