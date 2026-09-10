@@ -38,6 +38,10 @@ import {
   runCoupDeGraceTests
 } from "./CoupDeGraceTest";
 
+import {
+  runCoupDeGraceIntegrationTests
+} from "./CoupDeGraceIntegrationTest";
+
 runRulesTests();
 
 runRangeRulesTests();
@@ -57,3 +61,5 @@ runDisabledStateTests();
 runHitPointTransitionTests();
 
 runCoupDeGraceTests();
+
+runCoupDeGraceIntegrationTests();
