@@ -1,5 +1,6 @@
 import { createInitialGameState } from "../core/createInitialGameState";
 import { GameEngineCombatExtensionsWithCoupAoO } from "../core/GameEngineCombatExtensionsWithCoupAoO";
+import { createTurn } from "../Turn";
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(`TESTE FALHOU: ${message}`);
@@ -9,6 +10,25 @@ function createCombat(): GameEngineCombatExtensionsWithCoupAoO {
   const engine = new GameEngineCombatExtensionsWithCoupAoO(createInitialGameState());
   const start = engine.startCombat();
   assert(start.success, "Combate deveria iniciar.");
+
+  // Social integration tests always act with the player. Initiative is random,
+  // so make the test fixture deterministic without changing game rules.
+  const state = engine.getState();
+  const playerIndex = state.combat.turnOrder.indexOf("player-01");
+  assert(playerIndex >= 0, "Jogador deveria participar da iniciativa.");
+
+  const player = state.entities.find(entity => entity.id === "player-01");
+  assert(!!player, "Jogador deveria existir no estado.");
+
+  engine.setState({
+    ...state,
+    combat: {
+      ...state.combat,
+      currentTurnIndex: playerIndex
+    },
+    turn: createTurn(player!)
+  });
+
   return engine;
 }
 
