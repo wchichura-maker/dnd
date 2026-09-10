@@ -16,8 +16,6 @@ func _ready() -> void:
 
 func request_state() -> void: _request("GET", "/state", {})
 func request_action(action: Dictionary) -> void: _request("POST", "/action", action)
-func start_combat() -> void: _request("POST", "/combat/start", {})
-func end_combat() -> void: _request("POST", "/combat/end", {})
 func end_turn() -> void: _request("POST", "/turn/end", {})
 func reset_game() -> void: _request("POST", "/reset", {})
 func respawn_player() -> void: _request("POST", "/player/respawn", {})
