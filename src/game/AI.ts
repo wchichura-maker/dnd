@@ -154,6 +154,7 @@ export function chooseAction(
   return {
     type: "MOVE" as const,
     actorId: actor.id,
+    targetId: target.id,
     destination: best
   };
 }
