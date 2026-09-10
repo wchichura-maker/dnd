@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 
 import { GameEngine } from "../core/GameEngine";
 import { createInitialGameState } from "../core/createInitialGameState";
-import { getReachablePositions } from "../rules/Pathfinding";
+import { findPath, getReachablePositions } from "../rules/Pathfinding";
 import type { GameAction } from "../actions/Action";
 
 const HOST = "127.0.0.1";
@@ -106,11 +106,32 @@ const server = createServer(async (request, response) => {
 
     if (request.method === "POST" && request.url === "/action") {
       const action = await readJsonBody(request) as GameAction;
+      const stateBeforeAction = engine.getState();
+      const actorBeforeAction = stateBeforeAction.entities.find(
+        entity => entity.id === action.actorId
+      );
+
+      let movementPath: { x: number; y: number }[] = [];
+
+      if (actorBeforeAction && action.destination) {
+        const pathResult = findPath(
+          stateBeforeAction.map,
+          stateBeforeAction.entities,
+          actorBeforeAction.position,
+          action.destination,
+          actorBeforeAction.id
+        );
+
+        movementPath = pathResult?.path ?? [];
+      }
+
       const result = engine.executeAction(action);
+      const snapshot = getSnapshot();
 
       sendJson(response, result.success ? 200 : 400, {
         actionResult: result,
-        ...getSnapshot()
+        ...snapshot,
+        movementPath
       });
       return;
     }
