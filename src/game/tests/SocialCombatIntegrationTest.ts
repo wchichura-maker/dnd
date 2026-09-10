@@ -45,7 +45,7 @@ export function runSocialCombatIntegrationTests(): void {
             dnd: {
               ...entity.dnd,
               abilities: { ...entity.dnd.abilities, charisma: 30 },
-              skills: { DIPLOMACY: 20 }
+              skills: { DIPLOMACY: 40 }
             }
           }
         : entity
@@ -57,6 +57,7 @@ export function runSocialCombatIntegrationTests(): void {
     targetId: "orc-01"
   });
   assert(diplomacyResult.data?.socialCheck?.skill === "DIPLOMACY", "Diplomacia deveria expor a resolução do teste.");
+  assert(diplomacy.getState().mode === "EXPLORATION", "Diplomacia bem-sucedida deveria encerrar o combate quando a atitude chega a Friendly/Helpful.");
 
   const intimidate = createCombat();
   intimidate.setState({
@@ -80,6 +81,7 @@ export function runSocialCombatIntegrationTests(): void {
     targetId: "orc-01"
   });
   assert(intimidateResult.data?.socialCheck?.skill === "INTIMIDATE", "Intimidate deveria expor a resolução do teste.");
+  assert(intimidate.getState().mode === "EXPLORATION", "Intimidate bem-sucedido deveria encerrar o confronto.");
 
   const negotiation = createCombat();
   negotiation.setState({
@@ -103,6 +105,7 @@ export function runSocialCombatIntegrationTests(): void {
     targetId: "orc-01"
   });
   assert(negotiationResult.data?.socialCheck?.skill === "DIPLOMACY", "Negociação deveria usar Diplomacia.");
+  assert(negotiation.getState().mode === "EXPLORATION", "Negociação vencida deveria encerrar o combate.");
 
   console.log("✓ Rendição encerra combate");
   console.log("✓ Bluff resolve teste sem encerrar combate automaticamente");
