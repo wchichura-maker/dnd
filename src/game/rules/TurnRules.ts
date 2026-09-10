@@ -18,12 +18,25 @@ export function canUseStandardAction(
  * Depois de realizar um 5-foot step,
  * movimento normal não é mais permitido
  * neste turno.
+ *
+ * Se a ação padrão já foi consumida sem que
+ * tenha havido movimento normal, o movimento
+ * restante é reservado para o 5-foot step.
  */
 export function canUseMoveAction(
   turn: Turn
 ): boolean {
   if (
     turn.resources.hasTakenFiveFootStep
+  ) {
+    return false;
+  }
+
+  // Ataque/outra ação padrão antes de qualquer
+  // movimento: somente 5-foot step é permitido.
+  if (
+    !turn.resources.action &&
+    !turn.resources.hasMoved
   ) {
     return false;
   }
