@@ -4,6 +4,21 @@ import { createInitialGameState } from "../core/createInitialGameState";
 export function runCombatResolutionTests(): void {
   console.log("INICIANDO TESTES DE RESOLUÇÃO DE COMBATE");
 
+  const automatic = new GameEngineCombatExtensions(createInitialGameState());
+  const automaticStart = automatic.ensureAutomaticCombat();
+  if (automaticStart !== null) throw new Error("Combate não deveria iniciar automaticamente enquanto os combatentes estão fora do alcance.");
+  if (automatic.getState().mode !== "EXPLORATION") throw new Error("Estado inicial deveria permanecer em exploração.");
+
+  const attackScenario = new GameEngineCombatExtensions(createInitialGameState());
+  const attackAction = {
+    type: "ATTACK" as const,
+    actorId: "player-01",
+    targetId: "orc-01"
+  };
+  const attackResult = attackScenario.executeAction(attackAction);
+  if (attackScenario.getState().mode !== "COMBAT") throw new Error("Uma ação de ataque deveria iniciar o combate automaticamente.");
+  if (attackResult.message.includes("Combate não iniciado")) throw new Error("A ação de ataque não deveria ser bloqueada pela ausência de botão de combate.");
+
   const engine = new GameEngineCombatExtensions(createInitialGameState());
   const start = engine.startCombat();
   if (!start.success) throw new Error("Combate não iniciou no teste de resolução.");
@@ -33,6 +48,8 @@ export function runCombatResolutionTests(): void {
     if (scenario.getState().mode !== "EXPLORATION") throw new Error(`Resolução ${reason} não retornou para exploração.`);
   }
 
+  console.log("✓ Ataque inicia combate automaticamente");
+  console.log("✓ Combate não inicia automaticamente enquanto o inimigo hostil está fora do alcance");
   console.log("✓ Morte pode encerrar o combate e retornar para exploração");
   console.log("✓ Rendição, fuga, prisão, blefe, persuasão, intimidação e negociação possuem motivos de resolução");
   console.log("✓ TESTES DE RESOLUÇÃO DE COMBATE PASSARAM");
