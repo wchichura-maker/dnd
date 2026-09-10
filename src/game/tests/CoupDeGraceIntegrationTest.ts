@@ -29,7 +29,7 @@ export function runCoupDeGraceIntegrationTests(): void {
   );
 
   const start = engine.startCombat();
-  assert(start.success, "O combate deve iniciar normalmente.");
+  assert(start.success, `O combate deve iniciar normalmente. ${start.message}`);
 
   const started = engine.getState();
   const player = started.entities.find(entity => entity.id === "player-01");
@@ -52,7 +52,9 @@ export function runCoupDeGraceIntegrationTests(): void {
     }
   };
 
-  const combatState = {
+  const synchronizedTurn = createTurn(player);
+
+  engine.setState({
     ...started,
     entities: started.entities.map(entity =>
       entity.id === adjacentOrc.id
@@ -64,21 +66,21 @@ export function runCoupDeGraceIntegrationTests(): void {
       turnOrder: [player.id, adjacentOrc.id],
       currentTurnIndex: 0,
       active: true
-    }
-  };
-
-  engine.setState({
-    ...combatState,
+    },
     turn: {
-      ...createTurn(player),
+      ...synchronizedTurn,
       characterId: player.id
     }
   });
 
-  const activeBefore = engine.getActiveEntity?.();
+  const beforeAction = engine.getState();
   assert(
-    activeBefore?.id === player.id,
-    "O jogador deve ser a entidade ativa no cenário de teste."
+    beforeAction.turn.characterId === player.id,
+    "O jogador deve ser a entidade ativa antes do Golpe de Misericórdia."
+  );
+  assert(
+    beforeAction.combat.turnOrder[beforeAction.combat.currentTurnIndex] === player.id,
+    "A ordem de iniciativa deve indicar o jogador como entidade ativa."
   );
 
   const result = engine.executeAction({
@@ -89,7 +91,7 @@ export function runCoupDeGraceIntegrationTests(): void {
 
   assert(
     result.success,
-    `O Golpe de Misericórdia deve ser aceito contra um alvo DYING adjacente. ${result.message}`
+    `O Golpe de Misericórdia deve ser aceito contra um alvo DYING adjacente. ${result.message ?? ""}`
   );
 
   const after = engine.getState();
