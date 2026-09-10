@@ -12,6 +12,7 @@ import { attack } from "../CombatRules";
 import { getArmorClass } from "../rules/DefenseRules";
 import { getEntityAtPosition } from "../rules/OccupancyRules";
 import { rollD20, rollDice } from "../Dice";
+import { validateCharge, isStraightLinePath, getChargeMovement } from "../rules/CombatMovementRules";
 import type { CombatEndReason } from "../rules/CombatResolutionRules";
 import { getCombatEndMessage } from "../rules/CombatResolutionRules";
 
@@ -28,14 +29,6 @@ export class GameEngineCombatExtensions extends GameEngine {
     return super.endCombat();
   }
 
-  /**
-   * Combat is now a consequence of the game state/actions, not a player mode.
-   *
-   * This method is intentionally safe to call on every state/action boundary.
-   * It starts combat only when a hostile creature is capable of attacking a
-   * hostile target with its currently equipped weapon and that target is in
-   * range. It returns false when exploration should continue.
-   */
   ensureAutomaticCombat(): ActionResult | null {
     if (!this.isExplorationMode()) return null;
 
@@ -63,11 +56,6 @@ export class GameEngineCombatExtensions extends GameEngine {
     return null;
   }
 
-  /**
-   * Any action that explicitly represents an attempt to cause damage starts
-   * the encounter before the action is resolved. This keeps the rule in the
-   * Core so Godot or another client cannot bypass it.
-   */
   private isCombatInitiatingAction(action: GameAction): boolean {
     const type = String(action.type);
     return type === "ATTACK" || type === "DAMAGE" || type === "SPELL_DAMAGE" || type === "CAST_DAMAGE";
@@ -96,11 +84,6 @@ export class GameEngineCombatExtensions extends GameEngine {
     return isWithinWeaponRange(attacker, target);
   }
 
-  /**
-   * Encerramento explícito usado por sistemas de resolução de encontro.
-   * A decisão sobre blefe, persuasão, ameaça, fuga, prisão, rendição etc.
-   * pertence ao sistema que resolve a situação; todos convergem aqui.
-   */
   resolveCombat(reason: CombatEndReason): ActionResult {
     if (this.isExplorationMode()) {
       return { success: false, message: "O jogo já está em exploração." };
@@ -135,6 +118,7 @@ export class GameEngineCombatExtensions extends GameEngine {
     if (automaticStart && !automaticStart.success) return automaticStart;
 
     if (action.type === "COUP_DE_GRACE") return this.executeCoupDeGrace(action);
+    if (action.type === "CHARGE") return this.executeCharge(action);
     if (action.type === "MOVE") {
       const opportunityResult = this.resolveOpportunityAttacksBeforeMove(action);
       if (opportunityResult) return opportunityResult;
@@ -158,11 +142,87 @@ export class GameEngineCombatExtensions extends GameEngine {
     return result;
   }
 
-  /**
-   * Um combate termina automaticamente quando não resta nenhum par
-   * de combatentes vivos e hostis. Dying/Stable continuam no encontro;
-   * apenas DEAD deixa de ser um combatente vivo para esta finalidade.
-   */
+  private executeCharge(action: GameAction): ActionResult {
+    const state = this.getState();
+    if (state.mode !== "COMBAT") return { success: false, message: "Investida só pode ser usada em combate." };
+
+    const actor = this.getEntity(action.actorId);
+    if (!actor) return { success: false, message: "Atacante não encontrado." };
+    if (actor.id !== this.getActiveEntity()?.id) return { success: false, message: "Não é o turno desta entidade." };
+    if (!canAct(actor)) return { success: false, message: `${actor.name} não pode realizar ações neste estado.` };
+    if (!canUseFullRoundAction(state.turn)) return { success: false, message: "Investida requer a ação de rodada completa disponível." };
+    if (!action.targetId) return { success: false, message: "Alvo não informado." };
+    if (!action.destination) return { success: false, message: "Destino da investida não informado." };
+
+    const target = this.getEntity(action.targetId);
+    if (!target) return { success: false, message: "Alvo não encontrado." };
+    if (target.id === actor.id) return { success: false, message: "Uma entidade não pode investir contra si mesma." };
+    if (isDead(target)) return { success: false, message: `${target.name} está morto e não pode ser alvo da investida.` };
+
+    const validation = validateCharge(actor, target);
+    if (!validation.valid) return { success: false, message: validation.message };
+
+    const occupyingEntity = getEntityAtPosition(action.destination, state.entities, actor.id);
+    if (occupyingEntity) return { success: false, message: `Investida bloqueada. ${occupyingEntity.name} ocupa a casa de destino.` };
+
+    const pathResult = findPath(state.map, state.entities, actor.position, action.destination, actor.id);
+    if (!pathResult) return { success: false, message: "Não existe caminho válido para a investida." };
+    if (pathResult.cost < 2) return { success: false, message: "A investida exige pelo menos 10 pés de deslocamento." };
+    if (pathResult.cost > validation.maxMovement) return { success: false, message: `Investida excede o deslocamento máximo de ${validation.maxMovement} casas.` };
+
+    const steps = pathResult.path.length > 0 && pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y
+      ? pathResult.path
+      : [actor.position, ...pathResult.path];
+    if (!isStraightLinePath(steps)) return { success: false, message: "A investida deve seguir uma linha reta sem contornar obstáculos." };
+
+    const destinationEntity = { ...actor, position: action.destination };
+    if (!isWithinWeaponRange(destinationEntity, target)) return { success: false, message: "A investida deve terminar em uma posição de onde o alvo possa ser atacado." };
+
+    const originalTurn = state.turn;
+    this.setState({
+      ...this.getState(),
+      turn: {
+        ...this.getState().turn,
+        resources: { ...this.getState().turn.resources, movement: getChargeMovement(actor.movement) }
+      }
+    });
+
+    const opportunityResult = this.resolveOpportunityAttacksBeforeMove({ ...action, type: "MOVE" });
+    if (opportunityResult) {
+      this.setState({ ...this.getState(), turn: originalTurn });
+      return opportunityResult;
+    }
+
+    const movementResult = super.executeAction({ type: "MOVE", actorId: actor.id, destination: action.destination });
+    if (!movementResult.success) {
+      this.setState({ ...this.getState(), turn: originalTurn });
+      return { success: false, message: `Investida falhou: ${movementResult.message}` };
+    }
+
+    const attackResult = super.executeAction({ type: "ATTACK", actorId: actor.id, targetId: target.id });
+    if (!attackResult.success) return { success: false, message: `A investida chegou ao destino, mas o ataque falhou: ${attackResult.message}`, data: { position: action.destination } };
+
+    const currentState = this.getState();
+    this.setState({
+      ...currentState,
+      turn: consumeFullRoundAction(currentState.turn),
+      logs: [...currentState.logs, `${actor.name} realizou uma INVESTIDA: +2 no ataque e -2 na CA até o início do próximo turno.`]
+    });
+
+    return {
+      ...attackResult,
+      message: `${actor.name} realizou uma INVESTIDA contra ${target.name}. ${attackResult.message}`,
+      data: {
+        ...(attackResult.data ?? {}),
+        charge: true,
+        chargeAttackBonus: 2,
+        chargeAcPenalty: -2,
+        position: action.destination,
+        distance: pathResult.cost
+      }
+    };
+  }
+
   private shouldEndCombatAfterDeath(): boolean {
     const state = this.getState();
     const living = state.entities.filter(entity => !isDead(entity));
