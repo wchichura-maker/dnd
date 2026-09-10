@@ -62,6 +62,10 @@ import {
   runCombatMovementIntegrationTests
 } from "./CombatMovementIntegrationTest";
 
+import {
+  runGameCoreServerIntegrationTests
+} from "./GameCoreServerIntegrationTest";
+
 runRulesTests();
 runRangeRulesTests();
 runPathfindingTests();
@@ -78,3 +82,4 @@ runAITests();
 runCombatMovementTests();
 runWithdrawRulesTests();
 runCombatMovementIntegrationTests();
+await runGameCoreServerIntegrationTests();
