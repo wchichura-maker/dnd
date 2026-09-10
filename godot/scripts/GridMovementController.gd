@@ -12,6 +12,7 @@ var game_core: GameCoreClient
 var selected_tile: Vector2i = Vector2i(-1, -1)
 var current_path: Array[Vector2i] = []
 var reachable_tiles: Array[Vector2i] = []
+var five_foot_step_mode: bool = false
 
 func configure(
 	player_node: PlayerController,
@@ -48,7 +49,7 @@ func select_destination(world_position: Vector2) -> void:
 	selected_tile = destination
 
 	game_core.request_action({
-		"type": "MOVE",
+		"type": "FIVE_FOOT_STEP" if five_foot_step_mode else "MOVE",
 		"actorId": "player-01",
 		"destination": {
 			"x": destination.x,
@@ -74,6 +75,26 @@ func _on_state_received(snapshot: Dictionary) -> void:
 	if not reachable_variant is Array:
 		return
 
+	var state_variant: Variant = snapshot.get("state", {})
+	five_foot_step_mode = false
+	if state_variant is Dictionary:
+		var state := state_variant as Dictionary
+		if str(state.get("mode", "EXPLORATION")) == "COMBAT":
+			var combat := state.get("combat", {}) as Dictionary
+			var turn_order := combat.get("turnOrder", []) as Array
+			var current_index := int(combat.get("currentTurnIndex", 0))
+			var active_id := str(turn_order[current_index]) if current_index >= 0 and current_index < turn_order.size() else ""
+			if active_id == "player-01":
+				var turn := state.get("turn", {}) as Dictionary
+				var resources := turn.get("resources", {}) as Dictionary
+				five_foot_step_mode = (
+					!bool(resources.get("action", true)) and
+					bool(resources.get("moveAction", true)) and
+					bool(resources.get("fiveFootStepAvailable", false)) and
+					!bool(resources.get("hasMoved", false)) and
+					!bool(resources.get("hasTakenFiveFootStep", false))
+				)
+
 	reachable_tiles.clear()
 
 	for position_variant in reachable_variant as Array:
@@ -86,6 +107,12 @@ func _on_state_received(snapshot: Dictionary) -> void:
 				int(position.get("x", 0)),
 				int(position.get("y", 0))
 			)
+		)
+
+	if five_foot_step_mode:
+		var origin := player.grid_position
+		reachable_tiles = reachable_tiles.filter(func(tile: Vector2i) -> bool:
+			return abs(tile.x - origin.x) <= 1 and abs(tile.y - origin.y) <= 1
 		)
 
 	queue_redraw()
