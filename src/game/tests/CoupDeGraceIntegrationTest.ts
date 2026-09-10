@@ -52,7 +52,7 @@ export function runCoupDeGraceIntegrationTests(): void {
     }
   };
 
-  engine.setState({
+  const combatState = {
     ...started,
     entities: started.entities.map(entity =>
       entity.id === adjacentOrc.id
@@ -64,9 +64,22 @@ export function runCoupDeGraceIntegrationTests(): void {
       turnOrder: [player.id, adjacentOrc.id],
       currentTurnIndex: 0,
       active: true
-    },
-    turn: createTurn(player)
+    }
+  };
+
+  engine.setState({
+    ...combatState,
+    turn: {
+      ...createTurn(player),
+      characterId: player.id
+    }
   });
+
+  const activeBefore = engine.getActiveEntity?.();
+  assert(
+    activeBefore?.id === player.id,
+    "O jogador deve ser a entidade ativa no cenário de teste."
+  );
 
   const result = engine.executeAction({
     type: "COUP_DE_GRACE",
@@ -76,7 +89,7 @@ export function runCoupDeGraceIntegrationTests(): void {
 
   assert(
     result.success,
-    "O Golpe de Misericórdia deve ser aceito contra um alvo DYING adjacente."
+    `O Golpe de Misericórdia deve ser aceito contra um alvo DYING adjacente. ${result.message}`
   );
 
   const after = engine.getState();
