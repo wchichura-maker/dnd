@@ -26,7 +26,6 @@ func _ready() -> void:
 	game_core.action_resolved.connect(_on_action_resolved)
 	game_core.transport_error.connect(_on_transport_error)
 	entity_nodes[PLAYER_ID] = player
-	$CombatHUD/Panel/Margin/VBox/StartCombat.pressed.connect(_on_start_combat)
 	$CombatHUD/Panel/Margin/VBox/Attack.pressed.connect(_on_attack)
 	$CombatHUD/Panel/Margin/VBox/CoupDeGrace.pressed.connect(_on_coup_de_grace)
 	$CombatHUD/Panel/Margin/VBox/EndTurn.pressed.connect(_on_end_turn)
@@ -146,7 +145,6 @@ func _update_target_label() -> void:
 	var view := node.get_node_or_null("EntityView") as EntityView if is_instance_valid(node) else null
 	label.text = "Alvo: %s" % (view.entity_name if view else selected_target_id)
 
-func _on_start_combat() -> void: game_core.start_combat()
 func _on_attack() -> void:
 	if selected_target_id.is_empty(): return
 	game_core.request_action({"type": "ATTACK", "actorId": PLAYER_ID, "targetId": selected_target_id})
@@ -177,7 +175,6 @@ func _update_combat_hud(state: Dictionary, snapshot: Dictionary) -> void:
 	var hp := int(player_entity.get("hp", 0))
 	var max_hp := int(player_entity.get("maxHp", 0))
 	$CombatHUD/Panel/Margin/VBox/Status.text = "Modo: %s\nTurno: %s\nKael: HP %d/%d  Movimento %d" % [mode, active_name if not active_name.is_empty() else "—", hp, max_hp, movement_budget]
-	$CombatHUD/Panel/Margin/VBox/StartCombat.disabled = mode != "EXPLORATION"
 	_update_attack_button()
 	_update_coup_de_grace_button()
 	$CombatHUD/Panel/Margin/VBox/EndTurn.disabled = mode == "EXPLORATION" or active_id != PLAYER_ID
