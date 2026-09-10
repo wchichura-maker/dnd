@@ -4,6 +4,7 @@ extends Node2D
 ## Rendering and input stay in Godot; rules and state authority stay in TypeScript Game Core.
 
 const TILE_SIZE: float = 48.0
+const PLAYER_ID: String = "player-01"
 
 var map_size: Vector2i = Vector2i(26, 16)
 var blocked_tiles: Dictionary[Vector2i, bool] = {}
@@ -11,6 +12,7 @@ var adapter: GameEntityAdapter
 var player: PlayerController
 var movement_controller: GridMovementController
 var game_core: GameCoreClient
+var entity_nodes: Dictionary[String, Node2D] = {}
 
 func _ready() -> void:
 	adapter = GameEntityAdapter.new()
@@ -25,6 +27,8 @@ func _ready() -> void:
 	movement_controller.configure(player, game_core)
 	game_core.state_received.connect(_on_core_state_received)
 	game_core.transport_error.connect(_on_transport_error)
+
+	entity_nodes[PLAYER_ID] = player
 
 	_set_debug_status("D&D Online — Godot Foundation\nGame Core: conectando...\nClique em uma casa para mover\nESC: sair")
 	game_core.request_state()
@@ -79,41 +83,86 @@ func _apply_entity_state(state: Dictionary) -> void:
 	if not entities_variant is Array:
 		return
 
+	var active_ids: Dictionary[String, bool] = {}
+
 	for entity_variant in entities_variant as Array:
 		if not entity_variant is Dictionary:
 			continue
 
 		var entity: Dictionary = entity_variant
-		if str(entity.get("id", "")) != "player-01":
+		var entity_id: String = str(entity.get("id", ""))
+		if entity_id.is_empty():
 			continue
 
-		var position_variant: Variant = entity.get("position", {})
-		if not position_variant is Dictionary:
-			return
+		var node: Node2D = _get_or_create_entity_node(entity_id, str(entity.get("type", "NPC")))
+		if node == null:
+			continue
 
-		var position: Dictionary = position_variant
-		var grid_position: Vector2i = Vector2i(
-			int(position.get("x", 3)),
-			int(position.get("y", 3))
-		)
+		active_ids[entity_id] = true
+		var snapshot: EntitySnapshot = _create_entity_snapshot(entity)
 
-		player.grid_position = grid_position
-		if not player.is_moving:
-			player.position = Vector2(grid_position) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
+		if entity_id == PLAYER_ID:
+			player.grid_position = snapshot.grid_position
+			if not player.is_moving:
+				player.position = _grid_to_world(snapshot.grid_position)
 
-		var snapshot: EntitySnapshot = EntitySnapshot.from_dictionary({
-			"id": str(entity.get("id", "player-01")),
-			"name": str(entity.get("name", "Kael")),
-			"type": str(entity.get("type", "PLAYER")),
-			"x": grid_position.x,
-			"y": grid_position.y,
-			"hp": int(entity.get("hp", 0)),
-			"maxHp": int(entity.get("maxHp", 0)),
-			"movement": int(entity.get("movement", 0)),
-		})
+		adapter.bind_entity(node, snapshot)
 
-		adapter.bind_entity(player, snapshot)
-		return
+	_cleanup_removed_entities(active_ids)
+
+func _create_entity_snapshot(entity: Dictionary) -> EntitySnapshot:
+	var position_variant: Variant = entity.get("position", {})
+	var position: Dictionary = position_variant as Dictionary
+	var grid_position: Vector2i = Vector2i(
+		int(position.get("x", 0)),
+		int(position.get("y", 0))
+	)
+
+	return EntitySnapshot.from_dictionary({
+		"id": str(entity.get("id", "")),
+		"name": str(entity.get("name", "")),
+		"type": str(entity.get("type", "NPC")),
+		"x": grid_position.x,
+		"y": grid_position.y,
+		"hp": int(entity.get("hp", 0)),
+		"maxHp": int(entity.get("maxHp", 0)),
+		"armorClass": int(entity.get("armorClass", 10)),
+		"movement": int(entity.get("movement", 0)),
+	})
+
+func _get_or_create_entity_node(entity_id: String, entity_type: String) -> Node2D:
+	if entity_nodes.has(entity_id):
+		return entity_nodes[entity_id] as Node2D
+
+	var node: Node2D = Node2D.new()
+	node.name = "Entity_%s" % entity_id
+	add_child(node)
+	entity_nodes[entity_id] = node
+
+	if entity_type == "PLAYER":
+		node.queue_free()
+		entity_nodes.erase(entity_id)
+		return null
+
+	return node
+
+func _cleanup_removed_entities(active_ids: Dictionary[String, bool]) -> void:
+	var ids_to_remove: Array[String] = []
+
+	for entity_id in entity_nodes.keys():
+		if entity_id == PLAYER_ID:
+			continue
+		if not active_ids.has(entity_id):
+			ids_to_remove.append(entity_id)
+
+	for entity_id in ids_to_remove:
+		var node: Node2D = entity_nodes[entity_id] as Node2D
+		if is_instance_valid(node):
+			node.queue_free()
+		entity_nodes.erase(entity_id)
+
+func _grid_to_world(grid_position: Vector2i) -> Vector2:
+	return Vector2(grid_position) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
 
 func _on_transport_error(message: String) -> void:
 	_set_debug_status("D&D Online — Godot Foundation\nGame Core: erro\n%s\nESC: sair" % message)
@@ -154,9 +203,3 @@ func _draw() -> void:
 					Color("45474a"),
 					2.0
 				)
-
-	var spawn_rect: Rect2 = Rect2(
-		Vector2(3, 3) * TILE_SIZE,
-		Vector2.ONE * TILE_SIZE
-	)
-	draw_rect(spawn_rect, Color("d0a85c"), false, 2.0)
