@@ -12,7 +12,7 @@ import { attack } from "../CombatRules";
 import { getArmorClass } from "../rules/DefenseRules";
 import { getEntityAtPosition } from "../rules/OccupancyRules";
 import { rollD20, rollDice } from "../Dice";
-import { validateCharge, isStraightLinePath, getChargeMovement, validateRun, getRunMovement } from "../rules/CombatMovementRules";
+import { validateCharge, isStraightLinePath, getChargeMovement, validateRun, getRunMovement, validateWithdraw } from "../rules/CombatMovementRules";
 import { getWithdrawAoOTransitions } from "../rules/WithdrawRules";
 import type { CombatEndReason } from "../rules/CombatResolutionRules";
 import { getCombatEndMessage } from "../rules/CombatResolutionRules";
@@ -191,10 +191,14 @@ export class GameEngineCombatExtensions extends GameEngine {
 
   private resolveOpportunityAttacksForPath(actorId: string, steps: Array<{ x: number; y: number }>, allowedTransitions?: Array<{ from: { x: number; y: number }; to: { x: number; y: number }; index: number }>): ActionResult | null {
     const state = this.getState();
-    const actor = state.entities.find(entity => entity.id === actorId);
+    let actor = state.entities.find(entity => entity.id === actorId);
     if (!actor || !canAct(actor)) return null;
     const opportunityAttacks: NonNullable<NonNullable<ActionResult["data"]>["opportunityAttacks"]> = [];
     for (const defender of state.entities) {
+      actor = this.getEntity(actorId);
+      if (!actor || !canAct(actor)) {
+        return { success: false, message: `${state.entities.find(entity => entity.id === actorId)?.name ?? actorId} não pode concluir o movimento após o ataque de oportunidade.`, data: { opportunityAttacks } };
+      }
       if (defender.id === actor.id || isDead(defender) || !canAct(defender)) continue;
       if (this.opportunityAttacksUsed.has(defender.id)) continue;
       if (!this.isHostile(state, defender.id, actor.id)) continue;
@@ -213,6 +217,9 @@ export class GameEngineCombatExtensions extends GameEngine {
         const combatEnded = this.shouldEndCombatAfterDeath();
         if (combatEnded) this.resolveCombat("DEATH");
         return { success: false, message: combatEnded ? `${actor.name} morreu por um ataque de oportunidade. ${getCombatEndMessage("DEATH")}` : `${actor.name} morreu por um ataque de oportunidade e não pode concluir o movimento.`, data: { opportunityAttacks, targetDied: true, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined } };
+      }
+      if (!canAct(updatedActor)) {
+        return { success: false, message: `${updatedActor.name} ficou ${getHitPointState(updatedActor)} após o ataque de oportunidade e não pode concluir o movimento.`, data: { opportunityAttacks, targetDied: false, targetState: getHitPointState(updatedActor) } };
       }
     }
     return null;
@@ -278,63 +285,63 @@ export class GameEngineCombatExtensions extends GameEngine {
     return true;
   }
 
-  private resolveOpportunityAttacksBeforeMove(action: GameAction): ActionResult | null {
-    const state = this.getState();
-    if (state.mode !== "COMBAT" || !action.destination) return null;
-    const actor = state.entities.find(entity => entity.id === action.actorId);
-    if (!actor || !canAct(actor) || !canUseMoveAction(state.turn)) return null;
-    if (getEntityAtPosition(action.destination, state.entities, actor.id)) return null;
-    const pathResult = findPath(state.map, state.entities, actor.position, action.destination, actor.id);
-    if (!pathResult || pathResult.cost > state.turn.resources.movement) return null;
-    const steps = pathResult.path.length > 0 && pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y ? pathResult.path : [actor.position, ...pathResult.path];
-    return this.resolveOpportunityAttacksForPath(action.actorId, steps);
+  private isExplorationMode(): boolean {
+    return this.getState().mode === "EXPLORATION";
+  }
+
+  private getActiveEntity(): Combatant | undefined {
+    return this.getState().entities.find(entity => entity.id === this.getState().turn.characterId);
+  }
+
+  private isHostile(state: ReturnType<GameEngine["getState"]>, entityAId: string, entityBId: string): boolean {
+    return state.relationships.some(relationship =>
+      ((relationship.entityAId === entityAId && relationship.entityBId === entityBId) || (relationship.entityAId === entityBId && relationship.entityBId === entityAId)) && relationship.hostile
+    );
   }
 
   private distance(a: { x: number; y: number }, b: { x: number; y: number }): number {
-    const dx = Math.abs(a.x - b.x);
-    const dy = Math.abs(a.y - b.y);
-    const diagonal = Math.min(dx, dy);
-    const straight = Math.max(dx, dy) - diagonal;
-    return Math.floor(diagonal / 2) * 3 + (diagonal % 2) + straight;
+    return getCombatDistance(a, b);
   }
 
-  private isHostile(state: ReturnType<GameEngine["getState"]>, firstId: string, secondId: string): boolean {
-    return state.relationships.some(relationship => ((relationship.entityAId === firstId && relationship.entityBId === secondId) || (relationship.entityAId === secondId && relationship.entityBId === firstId)) && relationship.hostile);
+  private resolveOpportunityAttacksBeforeMove(action: GameAction): ActionResult | null {
+    if (this.getState().mode !== "COMBAT") return null;
+    const actor = this.getEntity(action.actorId);
+    if (!actor || !action.destination) return null;
+    const pathResult = findPath(this.getState().map, this.getState().entities, actor.position, action.destination, actor.id);
+    if (!pathResult) return null;
+    const steps = pathResult.path.length > 0 && pathResult.path[0].x === actor.position.x && pathResult.path[0].y === actor.position.y ? pathResult.path : [actor.position, ...pathResult.path];
+    return this.resolveOpportunityAttacksForPath(actor.id, steps);
   }
 
   private executeCoupDeGrace(action: GameAction): ActionResult {
     const state = this.getState();
-    if (state.mode === "EXPLORATION") return { success: false, message: "Golpe de Misericórdia só pode ser usado em combate." };
-    const activeEntity = this.getActiveEntity();
-    if (!activeEntity) return { success: false, message: "Entidade ativa não encontrada." };
-    if (action.actorId !== activeEntity.id) return { success: false, message: "Não é o turno desta entidade." };
-    if (!canAct(activeEntity)) return { success: false, message: `${activeEntity.name} não pode realizar ações neste estado.` };
-    if (getHitPointState(activeEntity) === "DISABLED") return { success: false, message: "Uma criatura DISABLED não pode realizar uma ação de rodada completa." };
-    if (!canUseFullRoundAction(state.turn)) return { success: false, message: "O Golpe de Misericórdia requer a ação de rodada completa disponível." };
-    if (!action.targetId) return { success: false, message: "Alvo não informado." };
-    const target = state.entities.find(entity => entity.id === action.targetId);
-    if (!target) return { success: false, message: "Alvo não encontrado." };
-    if (target.id === activeEntity.id) return { success: false, message: "Uma entidade não pode executar Golpe de Misericórdia contra si mesma." };
-    if (isDead(target)) return { success: false, message: "O alvo já está morto." };
-    if (!canReceiveCoupDeGrace(target)) return { success: false, message: "O alvo não está indefeso ou é imune a acertos críticos." };
-    const weapon = activeEntity.dnd.equipment.weapon;
-    if (!weapon) return { success: false, message: "É necessário estar empunhando uma arma para executar Golpe de Misericórdia." };
-    const distance = getCombatDistance(activeEntity, target);
-    if (!weapon.melee && distance > 1) return { success: false, message: "Armas de ataque à distância só podem executar Golpe de Misericórdia contra um alvo adjacente." };
-    if (!isWithinWeaponRange(activeEntity, target)) return { success: false, message: "O alvo está fora do alcance da arma." };
-    const damageRoll = rollDice(weapon.damageDice.count, weapon.damageDice.sides);
-    const strengthModifier = getStrengthModifier(activeEntity);
-    const baseDamage = Math.max(1, damageRoll + strengthModifier);
-    const damage = baseDamage * weapon.criticalMultiplier;
-    const targetAfterDamage = applyDamage(target, damage);
+    if (state.mode !== "COMBAT") return { success: false, message: "Golpe de misericórdia só pode ser usado em combate." };
+    const actor = this.getEntity(action.actorId);
+    const target = action.targetId ? this.getEntity(action.targetId) : undefined;
+    if (!actor || !target) return { success: false, message: "Atacante ou alvo não encontrado." };
+    if (actor.id !== this.getActiveEntity()?.id) return { success: false, message: "Não é o turno desta entidade." };
+    if (!canAct(actor)) return { success: false, message: `${actor.name} não pode realizar ações neste estado.` };
+    if (!canUseFullRoundAction(state.turn)) return { success: false, message: "Golpe de misericórdia requer a ação de rodada completa disponível." };
+    if (!isWithinWeaponRange(actor, target)) return { success: false, message: "O alvo está fora de alcance." };
+    const weapon = actor.dnd.equipment.weapon;
+    if (!weapon || !weapon.melee) return { success: false, message: "Golpe de misericórdia requer arma corpo a corpo." };
+    const validation = canReceiveCoupDeGrace(actor, target);
+    if (!validation.valid) return { success: false, message: validation.message };
+    const damageRoll = rollDice(weapon.damageDice ?? "1d8");
+    const strengthBonus = getStrengthModifier(actor.dnd.abilities.strength);
+    const damage = Math.max(1, damageRoll.total + strengthBonus);
     const fortitudeRoll = rollD20();
-    const coupResult = resolveCoupDeGrace(target, damage, targetAfterDamage, fortitudeRoll);
-    if (!coupResult.success) return { success: false, message: coupResult.message };
-    const targetAfterCoup: Combatant = coupResult.targetDied ? { ...targetAfterDamage, hp: -10 } : targetAfterDamage;
-    const nextTurn = consumeFullRoundAction(state.turn);
-    const turnOrder = coupResult.targetDied ? state.combat.turnOrder.filter(id => id !== target.id) : state.combat.turnOrder;
-    this.setState({ ...state, entities: state.entities.map(entity => entity.id === target.id ? targetAfterCoup : entity), combat: { ...state.combat, turnOrder, currentTurnIndex: turnOrder.length > 0 ? Math.min(state.combat.currentTurnIndex, turnOrder.length - 1) : 0 }, turn: nextTurn, logs: [...state.logs, `${activeEntity.name} executou Golpe de Misericórdia contra ${target.name}.`, `Dano: ${damageRoll} + ${strengthModifier} = ${baseDamage} × ${weapon.criticalMultiplier} = ${damage}.`, `Fortitude: ${fortitudeRoll} + ${coupResult.fortitude?.bonus ?? 0} = ${coupResult.fortitude?.total ?? 0} contra CD ${coupResult.fortitude?.dc ?? 0}.`, coupResult.message] });
-    if (coupResult.targetDied && this.shouldEndCombatAfterDeath()) this.resolveCombat("DEATH");
-    return { success: true, message: coupResult.targetDied ? `${target.name} morreu pelo Golpe de Misericórdia.` : `${target.name} sobreviveu ao Golpe de Misericórdia.`, data: { damage, critical: true, targetId: target.id, targetDied: coupResult.targetDied, damageRoll, fortitudeRoll, fortitude: coupResult.fortitude, combatEnded: coupResult.targetDied && this.isExplorationMode(), combatEndReason: coupResult.targetDied && this.isExplorationMode() ? "DEATH" : undefined } };
+    const fortitudeBonus = target.dnd.abilities.constitution;
+    const fortitude = fortitudeRoll + fortitudeBonus;
+    const resolved = resolveCoupDeGrace(actor, target, damage, fortitudeRoll, fortitudeBonus);
+    const targetAfter = resolved.target;
+    const after = consumeFullRoundAction(state.turn);
+    this.setState({ ...this.getState(), entities: this.getState().entities.map(entity => entity.id === targetAfter.id ? targetAfter : entity), turn: after, logs: [...this.getState().logs, `${actor.name} realizou um GOLPE DE MISERICÓRDIA contra ${target.name}.`, `Dano: ${damage}.`, `Fortitude: ${fortitudeRoll} + ${fortitudeBonus} = ${fortitude}. CD: ${resolved.dc}.`, resolved.instantDeath ? `${target.name} falhou no teste de Fortitude e morreu.` : `${target.name} sobreviveu ao golpe de misericórdia.`] });
+    if (resolved.instantDeath || isDead(targetAfter)) {
+      const combatEnded = this.shouldEndCombatAfterDeath();
+      if (combatEnded) this.resolveCombat("DEATH");
+      return { success: true, message: combatEnded ? `${target.name} morreu pelo golpe de misericórdia. ${getCombatEndMessage("DEATH")}` : `${target.name} morreu pelo golpe de misericórdia.`, data: { damageRoll, fortitudeRoll, fortitude, damage, combatEnded, combatEndReason: combatEnded ? "DEATH" : undefined } };
+    }
+    return { success: true, message: `${actor.name} realizou um GOLPE DE MISERICÓRDIA.`, data: { damageRoll, fortitudeRoll, fortitude, damage, targetDied: false } };
   }
 }
