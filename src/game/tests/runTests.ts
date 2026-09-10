@@ -34,6 +34,10 @@ import {
   runHitPointTransitionTests
 } from "./HitPointTransitionTest";
 
+import {
+  runCoupDeGraceTests
+} from "./CoupDeGraceTest";
+
 runRulesTests();
 
 runRangeRulesTests();
@@ -51,3 +55,5 @@ runConditionStateTests();
 runDisabledStateTests();
 
 runHitPointTransitionTests();
+
+runCoupDeGraceTests();
