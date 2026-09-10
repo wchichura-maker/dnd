@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Godot
+.godot/
+*.godot.tmp
+*.godot.import
+/export/
