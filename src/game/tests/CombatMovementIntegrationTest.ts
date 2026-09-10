@@ -60,7 +60,10 @@ export function runCombatMovementIntegrationTests(): void {
   if (withdraw.getState().logs.some(log => log.includes("ATAQUE DE OPORTUNIDADE"))) throw new Error("O primeiro quadrado de saída do Withdraw não deveria provocar AoO neste cenário.");
 
   const run = createCombatScenario();
-  setPositions(run, { x: 3, y: 5 }, { x: 4, y: 5 });
+  // O inimigo ameaça a casa inicial, mas não ocupa a trajetória da corrida.
+  // Assim a corrida pode seguir em linha reta e, ao sair da área ameaçada,
+  // o AoO pode ser validado separadamente do bloqueio de ocupação.
+  setPositions(run, { x: 3, y: 5 }, { x: 2, y: 5 });
   const runResult = run.executeAction({ type: "RUN", actorId: "player-01", destination: { x: 9, y: 5 } });
   if (!runResult.success) throw new Error(`Run deveria ser concluído: ${runResult.message}`);
   const runPlayer = run.getState().entities.find(entity => entity.id === "player-01");
