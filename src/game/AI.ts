@@ -6,42 +6,49 @@ import { isHelpless } from "./rules/CoupDeGraceRules";
 import { isDead } from "./rules/ConditionRules";
 import type { GameMap } from "./types/Map";
 
+type TargetRelation = Relationship;
+
 function distance(from: { x: number; y: number }, to: { x: number; y: number }): number {
   return Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y));
 }
 
-function relationshipBetween(
-  relationships: Relationship[],
-  a: string,
-  b: string
-): Relationship | undefined {
-  return relationships.find(
-    relationship =>
-      (relationship.entityAId === a && relationship.entityBId === b) ||
-      (relationship.entityAId === b && relationship.entityBId === a)
+function getRelationship(
+  relationships: TargetRelation[],
+  actorId: string,
+  targetId: string
+): TargetRelation | undefined {
+  return relationships.find(relationship =>
+    (relationship.entityAId === actorId && relationship.entityBId === targetId) ||
+    (relationship.entityAId === targetId && relationship.entityBId === actorId)
   );
+}
+
+function isHostileTarget(
+  relationships: TargetRelation[],
+  actorId: string,
+  targetId: string
+): boolean {
+  return getRelationship(relationships, actorId, targetId)?.hostile === true;
 }
 
 function getPotentialTargets(
   actor: Combatant,
   entities: Combatant[],
-  relationships: Relationship[]
+  relationships: TargetRelation[]
 ): Combatant[] {
   const living = entities.filter(entity => entity.id !== actor.id && !isDead(entity));
+
   if (relationships.length === 0) {
     return living.filter(entity => entity.type === "PLAYER");
   }
 
-  return living.filter(entity => {
-    const relationship = relationshipBetween(relationships, actor.id, entity.id);
-    return relationship?.hostile === true;
-  });
+  return living.filter(entity => isHostileTarget(relationships, actor.id, entity.id));
 }
 
 function selectTarget(
   actor: Combatant,
   entities: Combatant[],
-  relationships: Relationship[]
+  relationships: TargetRelation[]
 ): Combatant | undefined {
   const candidates = getPotentialTargets(actor, entities, relationships);
   if (candidates.length === 0) return undefined;
@@ -49,12 +56,14 @@ function selectTarget(
   return candidates.reduce((best, candidate) => {
     const bestHelpless = isHelpless(best);
     const candidateHelpless = isHelpless(candidate);
+
     if (candidateHelpless !== bestHelpless) {
       return candidateHelpless ? candidate : best;
     }
 
     const bestDistance = distance(actor.position, best.position);
     const candidateDistance = distance(actor.position, candidate.position);
+
     if (candidateDistance !== bestDistance) {
       return candidateDistance < bestDistance ? candidate : best;
     }
@@ -66,11 +75,10 @@ function selectTarget(
 /**
  * IA de combate determinística.
  *
- * A IA não decide regras: apenas escolhe uma intenção de ação.
- * O Game Core continua responsável por validar e executar a ação.
+ * A IA escolhe somente uma intenção. O Game Core valida e executa a ação.
  *
  * Prioridade:
- * 1. alvo hostil vivo; sem relações, mantém compatibilidade mirando PLAYER;
+ * 1. alvo hostil vivo;
  * 2. alvo helpless ao alcance -> COUP_DE_GRACE;
  * 3. alvo ao alcance -> ATTACK;
  * 4. aproximar-se do alvo usando posições realmente alcançáveis;
@@ -79,7 +87,7 @@ function selectTarget(
 export function chooseAction(
   actor: Combatant,
   entities: Combatant[],
-  relationships: Relationship[] = [],
+  relationships: TargetRelation[] = [],
   map?: GameMap
 ) {
   if (isDead(actor)) {
@@ -131,6 +139,7 @@ export function chooseAction(
   const best = candidates.reduce((currentBest, candidate) => {
     const currentDistance = distance(currentBest, target.position);
     const candidateDistance = distance(candidate, target.position);
+
     if (candidateDistance !== currentDistance) {
       return candidateDistance < currentDistance ? candidate : currentBest;
     }
@@ -138,6 +147,7 @@ export function chooseAction(
     if (candidate.y !== currentBest.y) {
       return candidate.y < currentBest.y ? candidate : currentBest;
     }
+
     return candidate.x < currentBest.x ? candidate : currentBest;
   });
 
