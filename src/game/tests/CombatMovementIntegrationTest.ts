@@ -57,7 +57,7 @@ export function runCombatMovementIntegrationTests(): void {
   const withdrawPlayer = withdraw.getState().entities.find(entity => entity.id === "player-01");
   if (!withdrawPlayer || withdrawPlayer.position.x !== 3 || withdrawPlayer.position.y !== 5) throw new Error("Withdraw não levou o personagem ao destino.");
   if (withdraw.getState().turn.resources.action || withdraw.getState().turn.resources.moveAction) throw new Error("Withdraw deveria consumir a rodada completa.");
-  if (withdrawResult.data?.opportunityAttacks?.length) throw new Error("O primeiro quadrado de saída do Withdraw não deveria provocar AoO.");
+  if (withdraw.getState().logs.some(log => log.includes("ATAQUE DE OPORTUNIDADE"))) throw new Error("O primeiro quadrado de saída do Withdraw não deveria provocar AoO neste cenário.");
 
   const run = createCombatScenario();
   setPositions(run, { x: 3, y: 5 }, { x: 4, y: 5 });
@@ -66,7 +66,7 @@ export function runCombatMovementIntegrationTests(): void {
   const runPlayer = run.getState().entities.find(entity => entity.id === "player-01");
   if (!runPlayer || runPlayer.position.x !== 9 || runPlayer.position.y !== 5) throw new Error("Run não levou o personagem ao destino.");
   if (run.getState().turn.resources.action || run.getState().turn.resources.moveAction) throw new Error("Run deveria consumir a rodada completa.");
-  if (!runResult.data?.opportunityAttacks?.length) throw new Error("Run deveria provocar AoO ao sair de uma casa ameaçada.");
+  if (!run.getState().logs.some(log => log.includes("ATAQUE DE OPORTUNIDADE"))) throw new Error("Run deveria provocar AoO ao sair de uma casa ameaçada.");
 
   const charge = createCombatScenario();
   setPositions(charge, { x: 3, y: 5 }, { x: 6, y: 5 });
