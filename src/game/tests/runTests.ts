@@ -1,45 +1,105 @@
-import { runGameEngineTests } from "./GameEngineTest";
-import { runRulesTests } from "./RulesTest";
-import { runRangeTests } from "./RangeTest";
-import { runPathfindingTests } from "./PathfindingTest";
-import { runFiveFootStepTests } from "./FiveFootStepTest";
-import { runStabilizationTests } from "./StabilizationTest";
-import { runSavingThrowTests } from "./SavingThrowTest";
-import { runConditionTests } from "./ConditionTest";
-import { runDisabledTests } from "./DisabledTest";
-import { runHpTransitionTests } from "./HpTransitionTest";
-import { runCoupDeGraceTests } from "./CoupDeGraceTest";
-import { runCoupDeGraceIntegrationTests } from "./CoupDeGraceIntegrationTest";
-import { runCombatResolutionTests } from "./CombatResolutionTest";
-import { runSocialRulesTests } from "./SocialRulesTest";
-import { runSocialCombatIntegrationTests } from "./SocialCombatIntegrationTest";
-import { runAiTests } from "./AiTest";
-import { runCombatMovementTests } from "./CombatMovementTest";
-import { runWithdrawTests } from "./WithdrawTest";
-import { runCombatMovementIntegrationTests } from "./CombatMovementIntegrationTest";
-import { runEncounterInitiativeTests } from "./EncounterInitiativeTest";
-import { runGameCoreServerIntegrationTests } from "./GameCoreServerIntegrationTest";
-import { runEncounterActionsTests } from "./EncounterActionsTest";
+import {
+  runRulesTests
+} from "./RulesTest";
 
-runGameEngineTests();
+import {
+  runRangeRulesTests
+} from "./RangeRulesTest";
+
+import {
+  runPathfindingTests
+} from "./PathfindingTest";
+
+import {
+  runFiveFootStepTests
+} from "./FiveFootStepTest";
+
+import {
+  runStabilizationTests
+} from "./StabilizationTest";
+
+import {
+  runSavingThrowTests
+} from "./SavingThrowTest";
+
+import {
+  runConditionStateTests
+} from "./ConditionStateTest";
+
+import {
+  runDisabledStateTests
+} from "./DisabledStateTest";
+
+import {
+  runHitPointTransitionTests
+} from "./HitPointTransitionTest";
+
+import {
+  runCoupDeGraceTests
+} from "./CoupDeGraceTest";
+
+import {
+  runCoupDeGraceIntegrationTests
+} from "./CoupDeGraceIntegrationTest";
+
+import {
+  runCombatResolutionTests
+} from "./CombatResolutionTest";
+
+import {
+  runSocialRulesTests
+} from "./SocialRulesTest";
+
+import {
+  runSocialCombatIntegrationTests
+} from "./SocialCombatIntegrationTest";
+
+import {
+  runAITests
+} from "./AITest";
+
+import {
+  runCombatMovementTests
+} from "./CombatMovementTest";
+
+import {
+  runWithdrawRulesTests
+} from "./WithdrawRulesTest";
+
+import {
+  runCombatMovementIntegrationTests
+} from "./CombatMovementIntegrationTest";
+
+import {
+  runEncounterInitiativeTests
+} from "./EncounterInitiativeTest";
+
+import {
+  runEncounterActionsTests
+} from "./EncounterActionsTest";
+
+import {
+  runGameCoreServerIntegrationTests
+} from "./GameCoreServerIntegrationTest";
+
 runRulesTests();
-runRangeTests();
+runRangeRulesTests();
 runPathfindingTests();
 runFiveFootStepTests();
 runStabilizationTests();
 runSavingThrowTests();
-runConditionTests();
-runDisabledTests();
-runHpTransitionTests();
+runConditionStateTests();
+runDisabledStateTests();
+runHitPointTransitionTests();
 runCoupDeGraceTests();
 runCoupDeGraceIntegrationTests();
 runCombatResolutionTests();
 runSocialRulesTests();
 runSocialCombatIntegrationTests();
-runAiTests();
+runAITests();
 runCombatMovementTests();
-runWithdrawTests();
+runWithdrawRulesTests();
 runCombatMovementIntegrationTests();
 runEncounterInitiativeTests();
 runEncounterActionsTests();
-runGameCoreServerIntegrationTests();
+await runGameCoreServerIntegrationTests();
