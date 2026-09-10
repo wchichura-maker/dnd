@@ -5,11 +5,15 @@ import { createInitialGameState } from "../core/createInitialGameState";
 import { chooseAction } from "../AI";
 import { findPath, getReachablePositions } from "../rules/Pathfinding";
 import type { GameAction } from "../actions/Action";
+import type { ActionResult } from "../actions/ActionResult";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GAME_CORE_PORT ?? 8787);
 const PLAYER_ID = "player-01";
+const MAX_ACTION_LOG_ENTRIES = 100;
+
 let engine = new GameEngineCombatExtensions(createInitialGameState());
+let actionLog: Array<Record<string, unknown>> = [];
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
   const body = JSON.stringify(payload);
@@ -23,19 +27,98 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
   response.end(body);
 }
 
+function appendActionLog(entry: Record<string, unknown>): void {
+  actionLog.push({
+    timestamp: new Date().toISOString(),
+    ...entry
+  });
+
+  if (actionLog.length > MAX_ACTION_LOG_ENTRIES) {
+    actionLog = actionLog.slice(-MAX_ACTION_LOG_ENTRIES);
+  }
+}
+
+function getActiveId(state = engine.getState()): string {
+  const turnOrder = state.combat.turnOrder;
+  const index = state.combat.currentTurnIndex;
+  return index >= 0 && index < turnOrder.length ? turnOrder[index] : "";
+}
+
+function getTurnDebug(state = engine.getState()): Record<string, unknown> {
+  return {
+    characterId: state.turn.characterId,
+    activeId: getActiveId(state),
+    action: state.turn.resources.action,
+    moveAction: state.turn.resources.moveAction,
+    movement: state.turn.resources.movement,
+    hasMoved: state.turn.resources.hasMoved,
+    fiveFootStepAvailable: state.turn.resources.fiveFootStepAvailable,
+    hasTakenFiveFootStep: state.turn.resources.hasTakenFiveFootStep,
+    disabled: state.turn.resources.disabled
+  };
+}
+
+function recordAction(
+  action: GameAction,
+  result: ActionResult,
+  before: ReturnType<typeof engine.getState>,
+  movementPath: Array<{ x: number; y: number }>,
+  source: "PLAYER" | "AI" | "SYSTEM"
+): void {
+  const after = engine.getState();
+  const actorBefore = before.entities.find(entity => entity.id === action.actorId);
+  const actorAfter = after.entities.find(entity => entity.id === action.actorId);
+
+  appendActionLog({
+    source,
+    type: action.type,
+    actorId: action.actorId,
+    targetId: action.targetId ?? null,
+    destination: action.destination ?? null,
+    success: result.success,
+    message: result.message,
+    data: result.data ?? null,
+    movementPath,
+    positionBefore: actorBefore?.position ?? null,
+    positionAfter: actorAfter?.position ?? null,
+    hpBefore: actorBefore?.hp ?? null,
+    hpAfter: actorAfter?.hp ?? null,
+    turnBefore: getTurnDebug(before),
+    turnAfter: getTurnDebug(after)
+  });
+}
+
 function getPresentationState() {
   const state = engine.getState();
   const player = state.entities.find(entity => entity.id === PLAYER_ID);
+  const activeId = getActiveId(state);
+  const movementBudget = activeId === PLAYER_ID
+    ? state.turn.resources.movement
+    : 0;
+
   return {
     playerId: PLAYER_ID,
-    reachablePositions: player
-      ? getReachablePositions(state.map, state.entities, player.position, player.movement, player.id)
-      : []
+    activeId,
+    movementBudget,
+    reachablePositions:
+      player && activeId === PLAYER_ID
+        ? getReachablePositions(
+            state.map,
+            state.entities,
+            player.position,
+            movementBudget,
+            player.id
+          )
+        : []
   };
 }
 
 function getSnapshot(): object {
-  return { state: engine.getState(), presentation: getPresentationState() };
+  return {
+    state: engine.getState(),
+    presentation: getPresentationState(),
+    actionLog
+  };
 }
 
 function runAiTurns(): Array<object> {
@@ -52,10 +135,20 @@ function runAiTurns(): Array<object> {
       ? findPath(state.map, state.entities, active.position, action.destination, active.id)?.path ?? []
       : [];
     const result = engine.executeAction(action);
+    recordAction(action, result, state, movementPath, "AI");
     aiActions.push({ action, result, movementPath });
 
     if (!result.success) break;
     const endResult = engine.endTurn();
+    appendActionLog({
+      source: "AI",
+      type: "END_TURN",
+      actorId: active.id,
+      success: endResult.success,
+      message: endResult.message,
+      data: endResult.data ?? null,
+      turnAfter: getTurnDebug()
+    });
     if (!endResult.success) break;
     guard++;
   }
@@ -81,19 +174,42 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && request.url === "/reset") {
       engine = new GameEngineCombatExtensions(createInitialGameState());
+      actionLog = [];
+      appendActionLog({ source: "SYSTEM", type: "RESET", success: true, message: "Jogo reiniciado." });
       return sendJson(response, 200, getSnapshot());
     }
     if (request.method === "POST" && request.url === "/combat/start") {
+      const before = engine.getState();
       const result = engine.startCombat();
+      appendActionLog({
+        source: "PLAYER",
+        type: "START_COMBAT",
+        actorId: PLAYER_ID,
+        success: result.success,
+        message: result.message,
+        turnAfter: getTurnDebug()
+      });
       const aiActions = result.success ? runAiTurns() : [];
-      return sendJson(response, result.success ? 200 : 400, { actionResult: result, aiActions, ...getSnapshot() });
+      return sendJson(response, result.success ? 200 : 400, { actionResult: result, aiActions, ...getSnapshot(), previousMode: before.mode });
     }
     if (request.method === "POST" && request.url === "/combat/end") {
       const result = engine.endCombat();
+      appendActionLog({ source: "PLAYER", type: "END_COMBAT", actorId: PLAYER_ID, success: result.success, message: result.message, turnAfter: getTurnDebug() });
       return sendJson(response, result.success ? 200 : 400, { actionResult: result, ...getSnapshot() });
     }
     if (request.method === "POST" && request.url === "/turn/end") {
+      const before = engine.getState();
+      const actorId = getActiveId(before);
       const result = engine.endTurn();
+      appendActionLog({
+        source: "PLAYER",
+        type: "END_TURN",
+        actorId,
+        success: result.success,
+        message: result.message,
+        turnBefore: getTurnDebug(before),
+        turnAfter: getTurnDebug()
+      });
       const aiActions = result.success ? runAiTurns() : [];
       return sendJson(response, result.success ? 200 : 400, { actionResult: result, aiActions, ...getSnapshot() });
     }
@@ -104,28 +220,57 @@ const server = createServer(async (request, response) => {
       let movementPath: { x: number; y: number }[] = [];
 
       if (actorBeforeAction && action.destination) {
-        movementPath = findPath(stateBeforeAction.map, stateBeforeAction.entities, actorBeforeAction.position, action.destination, actorBeforeAction.id)?.path ?? [];
+        movementPath = findPath(
+          stateBeforeAction.map,
+          stateBeforeAction.entities,
+          actorBeforeAction.position,
+          action.destination,
+          actorBeforeAction.id
+        )?.path ?? [];
+
         if (action.type === "MOVE") {
-          const reachable = getReachablePositions(stateBeforeAction.map, stateBeforeAction.entities, actorBeforeAction.position, actorBeforeAction.movement, actorBeforeAction.id);
+          const activeId = getActiveId(stateBeforeAction);
+          const movementBudget = activeId === action.actorId
+            ? stateBeforeAction.turn.resources.movement
+            : actorBeforeAction.movement;
+          const reachable = getReachablePositions(
+            stateBeforeAction.map,
+            stateBeforeAction.entities,
+            actorBeforeAction.position,
+            movementBudget,
+            actorBeforeAction.id
+          );
+
           if (!reachable.some(position => position.x === action.destination?.x && position.y === action.destination?.y)) {
+            const rejection: ActionResult = {
+              success: false,
+              message: `Destino excede o deslocamento disponível de ${movementBudget} quadrado(s).`
+            };
+            recordAction(action, rejection, stateBeforeAction, movementPath, "PLAYER");
             return sendJson(response, 400, {
-              actionResult: { success: false, message: `Destino excede o deslocamento máximo de ${actorBeforeAction.movement} quadrado(s).` },
-              ...getSnapshot(), movementPath: []
+              actionResult: rejection,
+              ...getSnapshot(),
+              movementPath: []
             });
           }
         }
       }
 
       const result = engine.executeAction(action);
+      recordAction(action, result, stateBeforeAction, movementPath, action.actorId === PLAYER_ID ? "PLAYER" : "SYSTEM");
       const aiActions = result.success ? runAiTurns() : [];
       return sendJson(response, result.success ? 200 : 400, {
-        actionResult: result, aiActions, ...getSnapshot(), movementPath: result.success ? movementPath : []
+        actionResult: result,
+        aiActions,
+        ...getSnapshot(),
+        movementPath: result.success ? movementPath : []
       });
     }
     return sendJson(response, 404, { success: false, message: "Endpoint não encontrado." });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido.";
-    return sendJson(response, 500, { success: false, message });
+    appendActionLog({ source: "SYSTEM", type: "ERROR", success: false, message });
+    return sendJson(response, 500, { success: false, message, ...getSnapshot() });
   }
 });
 
