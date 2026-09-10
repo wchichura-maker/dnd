@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { GameEngineEncounterWithFlee } from "../core/GameEngineEncounterWithFlee";
+import { GameEngineEncounterActions } from "../core/GameEngineEncounterActions";
 import { createInitialGameState } from "../core/createInitialGameState";
 import { chooseAction } from "../AI";
 import { findPath, getReachablePositions } from "../rules/Pathfinding";
@@ -12,7 +12,7 @@ const PORT = Number(process.env.GAME_CORE_PORT ?? 8787);
 const PLAYER_ID = "player-01";
 const MAX_ACTION_LOG_ENTRIES = 100;
 
-let engine = new GameEngineEncounterWithFlee(createInitialGameState());
+let engine = new GameEngineEncounterActions(createInitialGameState());
 let actionLog: Array<Record<string, unknown>> = [];
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
@@ -150,13 +150,10 @@ const server = createServer(async (request, response) => {
   try {
     if (request.method === "OPTIONS") return sendJson(response, 204, {});
     if (request.method === "GET" && request.url === "/health") return sendJson(response, 200, { ok: true, service: "dnd-game-core" });
-
-    if (request.method === "GET" && request.url === "/state") {
-      return sendJson(response, 200, getSnapshot());
-    }
+    if (request.method === "GET" && request.url === "/state") return sendJson(response, 200, getSnapshot());
 
     if (request.method === "POST" && request.url === "/reset") {
-      engine = new GameEngineEncounterWithFlee(createInitialGameState());
+      engine = new GameEngineEncounterActions(createInitialGameState());
       actionLog = [];
       appendActionLog({ source: "SYSTEM", type: "RESET", success: true, message: "Jogo reiniciado." });
       return sendJson(response, 200, getSnapshot());
@@ -167,7 +164,6 @@ const server = createServer(async (request, response) => {
       const initial = createInitialGameState();
       const initialPlayer = initial.entities.find(entity => entity.id === PLAYER_ID);
       if (!initialPlayer) return sendJson(response, 500, { success: false, message: "Personagem inicial não encontrado." });
-
       engine.setState({
         ...current,
         mode: "EXPLORATION",
@@ -213,7 +209,6 @@ const server = createServer(async (request, response) => {
 
       const result = engine.executeAction(action);
       recordAction(action, result, stateBeforeAction, movementPath, action.actorId === PLAYER_ID ? "PLAYER" : "SYSTEM");
-
       const postActionAutomaticEvents = processAutomaticCombatStart();
       const aiActions = result.success ? runAiTurns() : [];
       return sendJson(response, result.success ? 200 : 400, { actionResult: result, autoCombatEvents: [...automaticEvents, ...postActionAutomaticEvents], aiActions, ...getSnapshot(), movementPath: result.success ? movementPath : [] });
