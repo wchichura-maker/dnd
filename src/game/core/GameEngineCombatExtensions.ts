@@ -29,6 +29,74 @@ export class GameEngineCombatExtensions extends GameEngine {
   }
 
   /**
+   * Combat is now a consequence of the game state/actions, not a player mode.
+   *
+   * This method is intentionally safe to call on every state/action boundary.
+   * It starts combat only when a hostile creature is capable of attacking a
+   * hostile target with its currently equipped weapon and that target is in
+   * range. It returns false when exploration should continue.
+   */
+  ensureAutomaticCombat(): ActionResult | null {
+    if (!this.isExplorationMode()) return null;
+
+    const living = this.getState().entities.filter(entity => !isDead(entity) && canAct(entity));
+
+    for (let index = 0; index < living.length; index++) {
+      for (let otherIndex = index + 1; otherIndex < living.length; otherIndex++) {
+        const first = living[index];
+        const second = living[otherIndex];
+
+        if (!this.isHostile(this.getState(), first.id, second.id)) continue;
+        if (!this.canMeaningfullyAttack(first, second) && !this.canMeaningfullyAttack(second, first)) continue;
+
+        const result = this.startCombat([first.id, second.id]);
+        if (result.success) {
+          this.setState({
+            ...this.getState(),
+            logs: [...this.getState().logs, `${first.name} e ${second.name} entraram em combate automaticamente.`]
+          });
+        }
+        return result;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Any action that explicitly represents an attempt to cause damage starts
+   * the encounter before the action is resolved. This keeps the rule in the
+   * Core so Godot or another client cannot bypass it.
+   */
+  private isCombatInitiatingAction(action: GameAction): boolean {
+    const type = String(action.type);
+    return type === "ATTACK" || type === "DAMAGE" || type === "SPELL_DAMAGE" || type === "CAST_DAMAGE";
+  }
+
+  private startCombatForAction(action: GameAction): ActionResult | null {
+    if (!this.isExplorationMode() || !this.isCombatInitiatingAction(action)) return null;
+
+    const actor = this.getEntity(action.actorId);
+    const target = action.targetId ? this.getEntity(action.targetId) : undefined;
+    if (!actor || !target || isDead(actor) || isDead(target)) return null;
+
+    const result = this.startCombat([actor.id, target.id]);
+    if (result.success) {
+      this.setState({
+        ...this.getState(),
+        logs: [...this.getState().logs, `${actor.name} iniciou o confronto ao realizar ${action.type}.`]
+      });
+    }
+    return result;
+  }
+
+  private canMeaningfullyAttack(attacker: Combatant, target: Combatant): boolean {
+    const weapon = attacker.dnd.equipment.weapon;
+    if (!weapon) return false;
+    return isWithinWeaponRange(attacker, target);
+  }
+
+  /**
    * Encerramento explícito usado por sistemas de resolução de encontro.
    * A decisão sobre blefe, persuasão, ameaça, fuga, prisão, rendição etc.
    * pertence ao sistema que resolve a situação; todos convergem aqui.
@@ -63,6 +131,9 @@ export class GameEngineCombatExtensions extends GameEngine {
   }
 
   override executeAction(action: GameAction): ActionResult {
+    const automaticStart = this.startCombatForAction(action);
+    if (automaticStart && !automaticStart.success) return automaticStart;
+
     if (action.type === "COUP_DE_GRACE") return this.executeCoupDeGrace(action);
     if (action.type === "MOVE") {
       const opportunityResult = this.resolveOpportunityAttacksBeforeMove(action);
