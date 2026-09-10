@@ -1,13 +1,13 @@
 extends Node2D
 
-## Temporary input/rendering proof for the Godot foundation.
-## This is deliberately not connected to D&D movement rules yet.
+## Temporary input proof for the Godot foundation.
+## Movement is still local presentation-only and is not connected to D&D rules.
+## The entity's visual representation is owned by EntityView.
 
 const MOVE_SPEED := 220.0
+const MAP_WIDTH := 26.0 * 48.0
+const MAP_HEIGHT := 16.0 * 48.0
 const PLAYER_RADIUS := 14.0
-
-func _ready() -> void:
-	queue_redraw()
 
 func _process(delta: float) -> void:
 	var input_vector := Vector2.ZERO
@@ -23,25 +23,11 @@ func _process(delta: float) -> void:
 
 	if input_vector.length_squared() > 0.0:
 		position += input_vector.normalized() * MOVE_SPEED * delta
-		queue_redraw()
 
-	# Keep the prototype player inside the map bounds.
-	position.x = clamp(position.x, PLAYER_RADIUS, 26.0 * 48.0 - PLAYER_RADIUS)
-	position.y = clamp(position.y, PLAYER_RADIUS, 16.0 * 48.0 - PLAYER_RADIUS)
+	# Presentation-only bounds. Game rules will own movement after the adapter is connected.
+	position.x = clamp(position.x, PLAYER_RADIUS, MAP_WIDTH - PLAYER_RADIUS)
+	position.y = clamp(position.y, PLAYER_RADIUS, MAP_HEIGHT - PLAYER_RADIUS)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ESCAPE:
-			get_tree().quit()
-
-func _draw() -> void:
-	# Selection/base ring.
-	draw_circle(Vector2.ZERO, 20.0, Color("111111", 0.9))
-	draw_arc(Vector2.ZERO, 20.0, 0.0, TAU, 32, Color("d0a85c"), 2.0)
-
-	# Temporary player marker.
-	draw_circle(Vector2.ZERO, PLAYER_RADIUS, Color("7d5cff"))
-	draw_circle(Vector2.ZERO, PLAYER_RADIUS, Color("eeeeee"), false, 2.0)
-
-	# Facing indicator.
-	draw_line(Vector2(0, -4), Vector2(0, -18), Color("eeeeee"), 3.0)
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		get_tree().quit()
