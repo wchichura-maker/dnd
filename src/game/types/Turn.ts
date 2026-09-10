@@ -51,8 +51,11 @@ export type ActionResources = {
    * D&D 3.5: personagem disabled pode realizar
    * somente uma ação de movimento OU uma ação padrão
    * no turno, e se move à metade da velocidade.
+   *
+   * Opcional para manter compatibilidade com estados
+   * de turno criados antes desta regra existir.
    */
-  disabled: boolean;
+  disabled?: boolean;
 };
 
 export type Turn = {
