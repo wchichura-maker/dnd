@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { GameEngineCombatExtensionsWithCoupAoO } from "../core/GameEngineCombatExtensionsWithCoupAoO";
+import { GameEngineCombatExtensionsWithFlee } from "../core/GameEngineCombatExtensionsWithFlee";
 import { createInitialGameState } from "../core/createInitialGameState";
 import { chooseAction } from "../AI";
 import { findPath, getReachablePositions } from "../rules/Pathfinding";
@@ -12,7 +12,7 @@ const PORT = Number(process.env.GAME_CORE_PORT ?? 8787);
 const PLAYER_ID = "player-01";
 const MAX_ACTION_LOG_ENTRIES = 100;
 
-let engine = new GameEngineCombatExtensionsWithCoupAoO(createInitialGameState());
+let engine = new GameEngineCombatExtensionsWithFlee(createInitialGameState());
 let actionLog: Array<Record<string, unknown>> = [];
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
@@ -157,7 +157,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && request.url === "/reset") {
-      engine = new GameEngineCombatExtensionsWithCoupAoO(createInitialGameState());
+      engine = new GameEngineCombatExtensionsWithFlee(createInitialGameState());
       actionLog = [];
       appendActionLog({ source: "SYSTEM", type: "RESET", success: true, message: "Jogo reiniciado." });
       return sendJson(response, 200, getSnapshot());
