@@ -97,7 +97,7 @@ function getSnapshot(): object {
   return { state: engine.getState(), presentation: getPresentationState(), actionLog };
 }
 
-function processAutomaticCombat(): Array<object> {
+function processAutomaticCombatStart(): Array<object> {
   const events: Array<object> = [];
   const before = engine.getState();
   const result = engine.ensureAutomaticCombat();
@@ -115,7 +115,6 @@ function processAutomaticCombat(): Array<object> {
   }
 
   if (result?.success) events.push({ type: "AUTO_COMBAT_START", result });
-  if (engine.isCombatMode()) events.push(...runAiTurns());
   return events;
 }
 
@@ -152,8 +151,8 @@ const server = createServer(async (request, response) => {
     if (request.method === "OPTIONS") return sendJson(response, 204, {});
     if (request.method === "GET" && request.url === "/health") return sendJson(response, 200, { ok: true, service: "dnd-game-core" });
 
+    // GET is intentionally read-only. Game transitions and AI execution only happen on POST commands.
     if (request.method === "GET" && request.url === "/state") {
-      processAutomaticCombat();
       return sendJson(response, 200, getSnapshot());
     }
 
@@ -193,7 +192,7 @@ const server = createServer(async (request, response) => {
 
     if (request.method === "POST" && request.url === "/action") {
       const action = await readJsonBody(request) as GameAction;
-      const automaticEvents = processAutomaticCombat();
+      const automaticEvents = processAutomaticCombatStart();
       const stateBeforeAction = engine.getState();
       const actorBeforeAction = stateBeforeAction.entities.find(entity => entity.id === action.actorId);
       let movementPath: { x: number; y: number }[] = [];
@@ -215,7 +214,7 @@ const server = createServer(async (request, response) => {
       const result = engine.executeAction(action);
       recordAction(action, result, stateBeforeAction, movementPath, action.actorId === PLAYER_ID ? "PLAYER" : "SYSTEM");
 
-      const postActionAutomaticEvents = processAutomaticCombat();
+      const postActionAutomaticEvents = processAutomaticCombatStart();
       const aiActions = result.success ? runAiTurns() : [];
       return sendJson(response, result.success ? 200 : 400, { actionResult: result, autoCombatEvents: [...automaticEvents, ...postActionAutomaticEvents], aiActions, ...getSnapshot(), movementPath: result.success ? movementPath : [] });
     }
