@@ -1,125 +1,122 @@
 import type { Combatant } from "./entities/Combatant";
-import type { GameAction } from "./actions/Action";
-import type { Relationship } from "./relationships/Relationship";
+import {
+  getReachablePositions
+} from "./rules/Pathfinding";
 
 import {
   isWithinWeaponRange
 } from "./rules/RangeRules";
 
-import {
-  isHostile
-} from "./relationships/RelationshipQueries";
+function distance(from: { x: number; y: number }, to: { x: number; y: number }) {
+  return Math.max(
+    Math.abs(to.x - from.x),
+    Math.abs(to.y - from.y)
+  );
+}
+
+import type { GameMap } from "./types/Map";
 
 /**
- * Escolhe uma ação para uma entidade controlada
- * pela IA.
+ * IA de combate inicial.
  *
- * A IA decide o que deseja fazer.
- *
- * O GameEngine decide se a ação é válida
- * e executa as regras correspondentes.
+ * A IA escolhe um único objetivo para o turno.
+ * O movimento é calculado usando o deslocamento da própria ficha,
+ * respeitando obstáculos e o custo das diagonais do motor.
  */
 export function chooseAction(
   actor: Combatant,
   entities: Combatant[],
-  relationships: Relationship[]
-): GameAction {
+  _relationships: unknown[],
+  map?: GameMap
+) {
+  const player = entities.find(
+    entity => entity.type === "PLAYER" && entity.hp > 0
+  );
 
-  const hostileTargets =
-    entities.filter(
-      entity =>
-        entity.id !== actor.id &&
-        isHostile(
-          relationships,
-          actor.id,
-          entity.id
-        )
-    );
-
-  if (
-    hostileTargets.length === 0
-  ) {
+  if (!player) {
     return {
-      type: "WAIT",
+      type: "WAIT" as const,
       actorId: actor.id
     };
   }
 
-  /*
-   * Por enquanto escolhemos o inimigo
-   * mais próximo usando distância simples
-   * de grade.
-   *
-   * A decisão final de ataque continuará
-   * sendo validada pelo GameEngine.
-   */
-  const target =
-    hostileTargets[0];
-
-  /*
-   * Se o alvo estiver dentro do alcance
-   * da arma, a IA tenta atacar.
-   *
-   * Isso inclui casas diagonais adjacentes.
-   */
   if (
     isWithinWeaponRange(
       actor,
-      target
+      player
     )
   ) {
     return {
-      type: "ATTACK",
+      type: "ATTACK" as const,
       actorId: actor.id,
-      targetId: target.id
+      targetId: player.id
     };
   }
 
-  /*
-   * Caso esteja fora do alcance,
-   * a IA se aproxima.
-   */
-  const dx =
-    target.position.x -
-    actor.position.x;
+  const movement = Math.max(
+    0,
+    actor.movement
+  );
 
-  const dy =
-    target.position.y -
-    actor.position.y;
-
-  let destination = {
-    ...actor.position
-  };
-
-  if (
-    Math.abs(dx) >=
-    Math.abs(dy)
-  ) {
-
-    destination = {
-      x:
-        actor.position.x +
-        Math.sign(dx),
-
-      y:
-        actor.position.y
-    };
-
-  } else {
-
-    destination = {
-      x:
-        actor.position.x,
-
-      y:
-        actor.position.y +
-        Math.sign(dy)
+  if (movement <= 0) {
+    return {
+      type: "WAIT" as const,
+      actorId: actor.id
     };
   }
+
+  if (!map) {
+    return {
+      type: "WAIT" as const,
+      actorId: actor.id
+    };
+  }
+
+  const reachable =
+    getReachablePositions(
+      map,
+      entities,
+      actor.position,
+      movement,
+      actor.id
+    );
+
+  const candidates = reachable.filter(
+    position =>
+      position.x !== actor.position.x ||
+      position.y !== actor.position.y
+  );
+
+  if (candidates.length === 0) {
+    return {
+      type: "WAIT" as const,
+      actorId: actor.id
+    };
+  }
+
+  const best = candidates.reduce(
+    (currentBest, candidate) => {
+      const currentDistance =
+        distance(
+          currentBest,
+          player.position
+        );
+
+      const candidateDistance =
+        distance(
+          candidate,
+          player.position
+        );
+
+      return candidateDistance < currentDistance
+        ? candidate
+        : currentBest;
+    }
+  );
 
   return {
-    type: "MOVE",
+    type: "MOVE" as const,
     actorId: actor.id,
-    destination
+    destination: best
   };
 }

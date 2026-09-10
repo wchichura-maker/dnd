@@ -38,6 +38,10 @@ import type {
   AnimationState
 } from "./game/entities/AnimationState";
 
+import {
+  getAnimationDuration
+} from "./game/animation/AnimationController";
+
 import type {
   EntityVisualStates
 } from "./game/entities/VisualState";
@@ -96,9 +100,9 @@ function App() {
    */
 
   const [
-    movementPath,
-    setMovementPath
-  ] = useState<Position[]>([]);
+    movementPaths,
+    setMovementPaths
+  ] = useState<Record<string, Position[]>>({});
 
 
   /*
@@ -239,7 +243,9 @@ function App() {
    */
 
   const isMovementAnimating =
-    movementPath.length > 0;
+    Object.values(movementPaths).some(
+      path => path.length > 0
+    );
 
 
   /*
@@ -487,9 +493,10 @@ function App() {
       "WALK"
     );
 
-    setMovementPath(
-      pathResult.path
-    );
+    setMovementPaths(current => ({
+      ...current,
+      [character.id]: pathResult.path
+    }));
 
 
     /*
@@ -507,11 +514,15 @@ function App() {
    */
 
   const handleMovementAnimationComplete =
-    () => {
+    (entityId: string) => {
 
-      setMovementPath([]);
+      setMovementPaths(current => {
+        const next = { ...current };
+        delete next[entityId];
+        return next;
+      });
 
-      handleAnimationComplete(character.id);
+      handleAnimationComplete(entityId);
     };
 
 
@@ -858,38 +869,12 @@ function App() {
           currentState.entities.find(
             entity =>
               entity.id ===
-              currentState
-                .combat
-                .turnOrder[
-                  currentState
-                    .combat
-                    .currentTurnIndex
-                ]
+              currentState.combat.turnOrder[
+                currentState.combat.currentTurnIndex
+              ]
           );
 
-        if (
-          !currentActive
-        ) {
-          return;
-        }
-
-        if (
-          currentActive.controller !==
-          "AI"
-        ) {
-          return;
-        }
-
-        const player =
-          currentState.entities.find(
-            entity =>
-              entity.type ===
-              "PLAYER"
-          );
-
-        if (
-          !player
-        ) {
+        if (!currentActive || currentActive.controller !== "AI") {
           return;
         }
 
@@ -897,41 +882,110 @@ function App() {
           chooseAction(
             currentActive,
             currentState.entities,
-            currentState.relationships
+            currentState.relationships,
+            currentState.map
           );
+
+        const targetBefore =
+          action.targetId
+            ? currentState.entities.find(
+                entity => entity.id === action.targetId
+              )
+            : undefined;
+
+        let movementPathForAI: Position[] = [];
+
+        if (
+          action.type === "MOVE" &&
+          action.destination
+        ) {
+          const pathResult =
+            findPath(
+              currentState.map,
+              currentState.entities,
+              currentActive.position,
+              action.destination,
+              currentActive.id
+            );
+
+          if (pathResult) {
+            movementPathForAI = pathResult.path;
+          }
+        }
 
         const result =
           gameEngine.executeAction(
             action
           );
 
-        if (
-          !result.success
-        ) {
-
-          console.log(
-            `IA: ${result.message}`
-          );
+        if (!result.success) {
+          console.log(`IA: ${result.message}`);
+          gameEngine.endTurn();
+          setGameState(gameEngine.getState());
+          return;
         }
 
-        gameEngine.endTurn();
+        if (action.type === "MOVE") {
+          playAnimation(currentActive.id, "WALK");
+
+          if (movementPathForAI.length > 0) {
+            setMovementPaths(current => ({
+              ...current,
+              [currentActive.id]: movementPathForAI
+            }));
+          }
+        }
+
+        if (action.type === "ATTACK") {
+          playAnimation(currentActive.id, "ATTACK");
+
+          const targetAfter =
+            action.targetId
+              ? gameEngine.getState().entities.find(
+                  entity => entity.id === action.targetId
+                )
+              : undefined;
+
+          if (targetAfter && targetBefore) {
+            if (targetAfter.hp <= 0) {
+              playAnimation(targetAfter.id, "DEATH", true);
+            } else if (targetAfter.hp < targetBefore.hp) {
+              playAnimation(targetAfter.id, "HIT");
+            }
+          }
+        }
 
         setGameState(
           gameEngine.getState()
         );
 
+        const animationDuration =
+          action.type === "MOVE"
+            ? Math.max(
+                1,
+                movementPathForAI.length
+              ) * getAnimationDuration("WALK")
+            : action.type === "ATTACK"
+              ? getAnimationDuration("ATTACK")
+              : 200;
+
+        window.setTimeout(() => {
+          gameEngine.endTurn();
+
+          setGameState(
+            gameEngine.getState()
+          );
+        }, animationDuration);
+
       }, 500);
 
     return () => {
-      window.clearTimeout(
-        timer
-      );
+      window.clearTimeout(timer);
     };
 
   }, [
     activeEntity.id
   ]);
-
 
   /*
    * --------------------------------------------------
@@ -1033,8 +1087,8 @@ function App() {
               handleTileClick
             }
 
-            movementPath={
-              movementPath
+            movementPaths={
+              movementPaths
             }
 
             onMovementAnimationComplete={

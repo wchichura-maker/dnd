@@ -1,6 +1,7 @@
 import {
   useEffect,
-  useState
+  useState,
+  useRef
 } from "react";
 
 import type { Combatant } from "../game/entities/Combatant";
@@ -35,8 +36,8 @@ type GameMapProps = {
   fiveFootStepAvailable: boolean;
   isPlayerTurn: boolean;
   onTileClick: (x: number, y: number) => void;
-  movementPath?: Position[];
-  onMovementAnimationComplete?: () => void;
+  movementPaths?: Record<string, Position[]>;
+  onMovementAnimationComplete?: (entityId: string) => void;
   entityVisualStates?: EntityVisualStates;
   animationDefinitions?: Partial<Record<AnimationState, AnimationDefinition>>;
   onAnimationComplete?: (entityId: string) => void;
@@ -158,7 +159,7 @@ export default function GameMap({
   fiveFootStepAvailable,
   isPlayerTurn,
   onTileClick,
-  movementPath = [],
+  movementPaths = {},
   onMovementAnimationComplete,
   entityVisualStates = {},
   animationDefinitions = {},
@@ -186,6 +187,15 @@ export default function GameMap({
   const fiveFootStepMode =
     !actionAvailable &&
     fiveFootStepAvailable;
+
+  const isMovementAnimating =
+    Object.values(movementPaths).some(
+      path => path.length > 0
+    );
+
+  const playerVisualState =
+    entityVisualStates[character.id]?.animation ??
+    "IDLE";
 
   const movementHighlightDistance =
     fiveFootStepMode
@@ -233,80 +243,131 @@ export default function GameMap({
    */
 
   const [
-    visualPosition,
-    setVisualPosition
-  ] = useState<Position>({
-    x: character.position.x,
-    y: character.position.y
+    visualPositions,
+    setVisualPositions
+  ] = useState<Record<string, Position>>(() => {
+    const initial: Record<string, Position> = {};
+    entities.forEach(entity => {
+      initial[entity.id] = {
+        x: entity.position.x,
+        y: entity.position.y
+      };
+    });
+    return initial;
   });
 
   /*
    * ============================================================
-   * ANIMAÇÕES VISUAIS
+   * ANIMAÇÃO DE MOVIMENTO POR ENTIDADE
    * ============================================================
    */
 
-  const playerVisualState =
-    getEntityAnimation(character, entityVisualStates);
-
-  const isMovementAnimating =
-    movementPath.length > 0;
-
   useEffect(() => {
-    if (movementPath.length === 0) return;
+    const activeMovements = Object.entries(movementPaths);
+    if (activeMovements.length === 0) return;
 
     let cancelled = false;
-
-    async function animateMovement() {
-      for (const step of movementPath) {
-        if (cancelled) return;
-
-        setVisualPosition({ x: step.x, y: step.y });
-
-        await new Promise<void>(resolve => {
-          window.setTimeout(resolve, getAnimationDuration("WALK"));
-        });
-      }
-
-      if (cancelled) return;
-      onMovementAnimationComplete?.();
-    }
-
-    animateMovement();
-
-    return () => { cancelled = true; };
-  }, [movementPath, onMovementAnimationComplete]);
-
-  useEffect(() => {
-    if (movementPath.length === 0) {
-      setVisualPosition({
-        x: character.position.x,
-        y: character.position.y
-      });
-    }
-  }, [
-    character.position.x,
-    character.position.y,
-    movementPath.length
-  ]);
-
-  useEffect(() => {
     const timers: number[] = [];
 
-    Object.entries(entityVisualStates).forEach(([entityId, visual]) => {
-      if (visual.animation === "IDLE" || visual.animation === "WALK" || visual.persistent) {
+    activeMovements.forEach(([entityId, path]) => {
+      if (path.length === 0) return;
+
+      async function animateMovement() {
+        for (const step of path) {
+          if (cancelled) return;
+
+          setVisualPositions(current => ({
+            ...current,
+            [entityId]: { x: step.x, y: step.y }
+          }));
+
+          await new Promise<void>(resolve => {
+            const timer = window.setTimeout(
+              resolve,
+              getAnimationDuration("WALK")
+            );
+            timers.push(timer);
+          });
+        }
+
+        if (!cancelled) {
+          onMovementAnimationComplete?.(entityId);
+        }
+      }
+
+      animateMovement();
+    });
+
+    return () => {
+      cancelled = true;
+      timers.forEach(timer => window.clearTimeout(timer));
+    };
+  }, [movementPaths, onMovementAnimationComplete]);
+
+  useEffect(() => {
+    setVisualPositions(current => {
+      const next = { ...current };
+
+      entities.forEach(entity => {
+        if (!movementPaths[entity.id]?.length) {
+          next[entity.id] = {
+            x: entity.position.x,
+            y: entity.position.y
+          };
+        }
+      });
+
+      return next;
+    });
+  }, [entities, movementPaths]);
+
+  /*
+   * ============================================================
+   * FINALIZAÇÃO DAS ANIMAÇÕES DE COMBATE
+   * ============================================================
+   *
+   * Cada entidade possui seu próprio estado visual.
+   * Quando uma animação temporária começa, aguardamos
+   * a duração definida pelo AnimationController e avisamos
+   * o App para devolver a entidade ao estado IDLE.
+   * DEATH não é finalizado automaticamente: ele deve permanecer
+   * até que o estado lógico da entidade seja DEAD.
+   */
+
+  const animationTimers = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    entities.forEach(entity => {
+      const state = getEntityAnimation(
+        entity,
+        entityVisualStates
+      );
+
+      if (state === "IDLE" || state === "WALK" || state === "DEATH") {
         return;
       }
 
-      const duration = getAnimationDuration(visual.animation);
-      const timer = window.setTimeout(() => {
-        onAnimationComplete?.(entityId);
-      }, duration);
-      timers.push(timer);
+      const previousTimer =
+        animationTimers.current[entity.id];
+
+      if (previousTimer !== undefined) {
+        window.clearTimeout(previousTimer);
+      }
+
+      animationTimers.current[entity.id] =
+        window.setTimeout(() => {
+          delete animationTimers.current[entity.id];
+          onAnimationComplete?.(entity.id);
+        }, getAnimationDuration(state));
     });
 
-    return () => timers.forEach(timer => window.clearTimeout(timer));
-  }, [entityVisualStates, onAnimationComplete]);
+    return () => {
+      Object.values(animationTimers.current).forEach(timer =>
+        window.clearTimeout(timer)
+      );
+    };
+  }, [entities, entityVisualStates, onAnimationComplete]);
+
 
   /*
    * ============================================================
@@ -314,7 +375,7 @@ export default function GameMap({
    * ============================================================
    */
 
-  function handleTileClick(
+function handleTileClick(
     x: number,
     y: number
   ) {
@@ -490,7 +551,7 @@ export default function GameMap({
       {entities.map(entity => {
         const state = getEntityAnimation(entity, entityVisualStates);
         const isPlayer = entity.id === character.id;
-        const position = isPlayer ? visualPosition : entity.position;
+        const position = visualPositions[entity.id] ?? entity.position;
         const hpState = getHitPointState(entity);
         const statusTypes = (entity.conditions ?? [])
           .slice(0, 3)
@@ -519,8 +580,8 @@ export default function GameMap({
               zIndex: isPlayer ? 20 : 19,
               pointerEvents: "none",
               transform: getEntityTransform(state),
-              transition: isPlayer && movementPath.length > 0
-                ? "left 100ms linear, top 100ms linear, transform 120ms ease"
+              transition: movementPaths[entity.id]?.length
+                ? "left 120ms linear, top 120ms linear, transform 120ms ease"
                 : "transform 120ms ease",
               opacity: hpState === "DEAD" || state === "DEATH" ? 0.45 : 1,
               filter: hpState === "DEAD" ? "grayscale(1)" : "none"
