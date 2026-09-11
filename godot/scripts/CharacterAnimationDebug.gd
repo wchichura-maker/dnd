@@ -3,6 +3,7 @@ extends Node
 ## Presentation bridge for character animations.
 ## F1-F8 select directions; I plays INTERACT.
 ## BLOCK is triggered automatically when an enemy attack misses the player.
+## Combat facing always points the player toward the current target/attacker.
 
 const DIRECTION_KEYS := {
 	KEY_F1: CharacterAnimationState.Direction.SOUTH,
@@ -69,21 +70,19 @@ func _on_action_resolved(action_result: Dictionary, snapshot: Dictionary) -> voi
 	if not bool(action_result.get("success", false)):
 		return
 
-	# AI turns are returned in the same response as the player's action.
-	# Inspect those authoritative action results directly so an enemy miss
-	# against the player produces BLOCK even though the client did not request
-	# the enemy action itself.
 	_play_block_from_ai_actions(snapshot)
 
 	var action := connected_game_core.last_requested_action if connected_game_core != null else {}
 	var action_actor_id := str(action.get("actorId", ""))
 
-	# The player's own successful attack is an ATTACK animation.
+	# The player's own successful attack is an ATTACK animation and immediately
+	# turns the character toward the actual selected target.
 	if action_actor_id == "player-01":
 		var player_view := _get_player_view()
 		if player_view == null or player_view.animation_controller == null:
 			return
 		if str(action.get("type", "")) in ["ATTACK", "COUP_DE_GRACE"]:
+			_face_player_toward(snapshot, str(action.get("targetId", "")))
 			player_view.animation_controller.play_state(CharacterAnimationState.State.ATTACK, false)
 
 func _play_block_from_ai_actions(snapshot: Dictionary) -> void:
@@ -110,6 +109,7 @@ func _play_block_from_ai_actions(snapshot: Dictionary) -> void:
 		if str(action.get("targetId", "")) != "player-01":
 			continue
 
+		_face_player_toward(snapshot, str(action.get("actorId", "")))
 		var data_variant: Variant = result.get("data", {})
 		if not data_variant is Dictionary:
 			continue
@@ -126,7 +126,8 @@ func _on_state_received(snapshot: Dictionary) -> void:
 	var state_variant: Variant = snapshot.get("state", {})
 	if not state_variant is Dictionary:
 		return
-	var entities_variant: Variant = (state_variant as Dictionary).get("entities", [])
+	var state := state_variant as Dictionary
+	var entities_variant: Variant = state.get("entities", [])
 	if not entities_variant is Array:
 		return
 	for entity_variant in entities_variant as Array:
@@ -138,9 +139,90 @@ func _on_state_received(snapshot: Dictionary) -> void:
 		if previous_hp.has(id) and hp < int(previous_hp[id]):
 			var view := _find_entity_view(id)
 			if view != null and view.animation_controller != null:
-				var state := CharacterAnimationState.State.DEATH if hp <= -10 else CharacterAnimationState.State.HIT
-				view.animation_controller.play_state(state, false)
+				var state_name := CharacterAnimationState.State.DEATH if hp <= -10 else CharacterAnimationState.State.HIT
+				view.animation_controller.play_state(state_name, false)
 		previous_hp[id] = hp
+
+	if str(state.get("mode", "EXPLORATION")) == "COMBAT":
+		var target_id := _selected_target_id()
+		if target_id.is_empty():
+			target_id = _first_living_opponent_id(state)
+		if not target_id.is_empty():
+			_face_player_toward(snapshot, target_id)
+
+func _face_player_toward(snapshot: Dictionary, target_id: String) -> void:
+	if target_id.is_empty():
+		return
+	var state_variant: Variant = snapshot.get("state", {})
+	if not state_variant is Dictionary:
+		return
+	var entities_variant: Variant = (state_variant as Dictionary).get("entities", [])
+	if not entities_variant is Array:
+		return
+	var player_position := Vector2i.ZERO
+	var target_position := Vector2i.ZERO
+	var found_player := false
+	var found_target := false
+	for entity_variant in entities_variant as Array:
+		if not entity_variant is Dictionary:
+			continue
+		var entity := entity_variant as Dictionary
+		var position_variant: Variant = entity.get("position", {})
+		if not position_variant is Dictionary:
+			continue
+		var position := position_variant as Dictionary
+		var entity_id := str(entity.get("id", ""))
+		var tile := Vector2i(int(position.get("x", 0)), int(position.get("y", 0)))
+		if entity_id == "player-01":
+			player_position = tile
+			found_player = true
+		elif entity_id == target_id and int(entity.get("hp", 0)) > -10:
+			target_position = tile
+			found_target = true
+	if not found_player or not found_target:
+		return
+	var delta := target_position - player_position
+	if delta == Vector2i.ZERO:
+		return
+	var x := signi(delta.x)
+	var y := signi(delta.y)
+	var direction := CharacterAnimationState.Direction.SOUTH
+	if x == 0 and y > 0:
+		direction = CharacterAnimationState.Direction.SOUTH
+	elif x > 0 and y > 0:
+		direction = CharacterAnimationState.Direction.SOUTHEAST
+	elif x > 0 and y == 0:
+		direction = CharacterAnimationState.Direction.EAST
+	elif x > 0 and y < 0:
+		direction = CharacterAnimationState.Direction.NORTHEAST
+	elif x == 0 and y < 0:
+		direction = CharacterAnimationState.Direction.NORTH
+	elif x < 0 and y < 0:
+		direction = CharacterAnimationState.Direction.NORTHWEST
+	elif x < 0 and y == 0:
+		direction = CharacterAnimationState.Direction.WEST
+	else:
+		direction = CharacterAnimationState.Direction.SOUTHWEST
+	var view := _get_player_view()
+	if view != null and view.animation_controller != null:
+		view.animation_controller.set_direction(direction)
+
+func _selected_target_id() -> String:
+	var main := get_tree().current_scene
+	if main == null:
+		return ""
+	return str(main.get("selected_target_id"))
+
+func _first_living_opponent_id(state: Dictionary) -> String:
+	for entity_variant in state.get("entities", []) as Array:
+		if not entity_variant is Dictionary:
+			continue
+		var entity := entity_variant as Dictionary
+		if str(entity.get("id", "")) == "player-01":
+			continue
+		if int(entity.get("hp", 0)) > -10:
+			return str(entity.get("id", ""))
+	return ""
 
 func _find_entity_view(entity_id: String) -> EntityView:
 	var main := get_tree().current_scene
