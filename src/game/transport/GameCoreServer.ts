@@ -94,13 +94,13 @@ function normalizeCombatAfterAction(): ActionResult | null {
 }
 
 function applyMovementHunger(action: GameAction, result: ActionResult, movementPath: Array<{ x: number; y: number }>): void {
-  if (!result.success || movementPath.length < 2) return;
+  if (!result.success || movementPath.length === 0) return;
 
   const state = engine.getState();
   const actor = state.entities.find(entity => entity.id === action.actorId);
   if (!actor || actor.food === undefined || actor.maxFood === undefined) return;
 
-  const movedTiles = movementPath.length - 1;
+  const movedTiles = movementPath.length;
   const updatedActor = consumeFoodForMovement(actor, movedTiles);
   if (updatedActor.food === actor.food) return;
 
