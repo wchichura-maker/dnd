@@ -20,9 +20,15 @@ func _connect_game_core() -> void:
 	if scene_root == null:
 		return
 	game_core = scene_root.get_node_or_null("GameCoreClient")
-	if game_core != null and game_core.has_signal("state_received"):
-		if not game_core.state_received.is_connected(_on_state_received):
-			game_core.state_received.connect(_on_state_received)
+	if game_core == null or not game_core.has_signal("state_received"):
+		return
+	if not game_core.state_received.is_connected(_on_state_received):
+		game_core.state_received.connect(_on_state_received)
+	var cached_variant: Variant = game_core.get("latest_snapshot")
+	if cached_variant is Dictionary and not (cached_variant as Dictionary).is_empty():
+		_on_state_received(cached_variant as Dictionary)
+	elif game_core.has_method("request_state"):
+		game_core.request_state()
 
 func _on_state_received(snapshot: Dictionary) -> void:
 	var state_variant: Variant = snapshot.get("state", {})
