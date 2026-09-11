@@ -16,6 +16,12 @@ var selected: bool = false
 const RADIUS: float = 14.0
 const BAR_WIDTH: float = 42.0
 const BAR_HEIGHT: float = 5.0
+const PAPER_BURNED := Color("d6c9a8")
+const WOOD_DARK := Color("30261e")
+const LEATHER := Color("70553d")
+const GOLD := Color("b08a4d")
+const SUCCESS := Color("65704d")
+const FAILURE := Color("93483d")
 
 func apply_snapshot(snapshot: EntitySnapshot) -> void:
 	entity_id = snapshot.id
@@ -27,23 +33,24 @@ func apply_snapshot(snapshot: EntitySnapshot) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	var ring_color: Color = Color("d0a85c") if selected else Color("777777")
-	var body_color: Color = Color("7d5cff") if entity_type == "PLAYER" else Color("9b5b4b")
+	var ring_color: Color = GOLD if selected else LEATHER
+	var body_color: Color = LEATHER if entity_type == "PLAYER" else WOOD_DARK
+	var is_dead := hp <= -10
+	var is_dying := hp < 0 and not is_dead
 
-	draw_circle(Vector2.ZERO, 20.0, Color("111111", 0.9))
-	draw_arc(Vector2.ZERO, 20.0, 0.0, TAU, 32, ring_color, 2.0)
-	draw_circle(Vector2.ZERO, RADIUS, body_color)
-	draw_circle(Vector2.ZERO, RADIUS, Color("eeeeee"), false, 2.0)
-	draw_line(Vector2(0, -4), Vector2(0, -18), Color("eeeeee"), 3.0)
+	# Silhueta simples, baixa saturação e leitura imediata sobre o mundo.
+	draw_circle(Vector2.ZERO, 20.0, Color(WOOD_DARK, 0.92))
+	draw_arc(Vector2.ZERO, 20.0, 0.0, TAU, 32, ring_color, 2.5 if selected else 1.5)
+	draw_circle(Vector2.ZERO, RADIUS, FAILURE if is_dead else body_color)
+	draw_circle(Vector2.ZERO, RADIUS, PAPER_BURNED, false, 1.5)
+	draw_line(Vector2(0, -4), Vector2(0, -18), PAPER_BURNED, 2.0)
 
-	# HP bar is presentation only; it does not own or mutate HP.
 	var hp_ratio: float = 0.0
 	if max_hp > 0:
 		hp_ratio = clampf(float(hp) / float(max_hp), 0.0, 1.0)
-
-	var bar_origin: Vector2 = Vector2(-BAR_WIDTH * 0.5, -31.0)
-	draw_rect(Rect2(bar_origin, Vector2(BAR_WIDTH, BAR_HEIGHT)), Color("111111"))
-	draw_rect(Rect2(bar_origin, Vector2(BAR_WIDTH * hp_ratio, BAR_HEIGHT)), Color("68a85c"))
+	var bar_origin := Vector2(-BAR_WIDTH * 0.5, -31.0)
+	draw_rect(Rect2(bar_origin, Vector2(BAR_WIDTH, BAR_HEIGHT)), Color(WOOD_DARK, 0.95))
+	draw_rect(Rect2(bar_origin, Vector2(BAR_WIDTH * hp_ratio, BAR_HEIGHT)), SUCCESS if not is_dying and not is_dead else FAILURE)
 
 	if entity_name != "":
-		draw_string(ThemeDB.fallback_font, Vector2(-32, 34), entity_name, HORIZONTAL_ALIGNMENT_LEFT, 64, 12, Color("eeeeee"))
+		draw_string(ThemeDB.fallback_font, Vector2(-40, 34), entity_name, HORIZONTAL_ALIGNMENT_CENTER, 80, 12, PAPER_BURNED)
