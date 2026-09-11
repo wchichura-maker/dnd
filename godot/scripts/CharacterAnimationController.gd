@@ -31,6 +31,8 @@ func configure(sprite: AnimatedSprite2D) -> void:
 	_build_interact_animations()
 
 func set_entity_type(value: String) -> void:
+	if entity_type == value and _has_interact_animation():
+		return
 	entity_type = value
 	_build_interact_animations()
 
@@ -75,6 +77,11 @@ func _animation_name(state: int) -> String:
 		return "INTERACT_%s" % direction_names[direction]
 	return CharacterAnimationState.State.keys()[state]
 
+func _has_interact_animation() -> bool:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return false
+	return animated_sprite.sprite_frames.has_animation("INTERACT_SOUTH")
+
 func _build_interact_animations() -> void:
 	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
@@ -82,11 +89,11 @@ func _build_interact_animations() -> void:
 	var sheet := AssetRegistry.animation_sheet(CharacterAnimationState.State.INTERACT, entity_type)
 	if sheet == null:
 		return
+	if _has_interact_animation():
+		return
 
 	for row in range(INTERACT_DIRECTION_COUNT):
 		var animation_name := "INTERACT_%s" % direction_names[row]
-		if frames.has_animation(animation_name):
-			frames.remove_animation(animation_name)
 		frames.add_animation(animation_name)
 		frames.set_animation_loop(animation_name, false)
 		frames.set_animation_speed(animation_name, INTERACT_FPS)
