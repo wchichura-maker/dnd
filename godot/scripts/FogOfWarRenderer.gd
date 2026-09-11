@@ -1,5 +1,4 @@
 extends Node2D
-class_name FogOfWarRenderer
 
 const TILE_SIZE: float = 48.0
 const PLAYER_ID := "player-01"
@@ -113,10 +112,11 @@ func _draw() -> void:
 	if camera == null:
 		return
 
-	var viewport_size := get_viewport_rect().size / camera.zoom
+	var viewport_pixels := get_viewport_rect().size
+	var viewport_world := viewport_pixels / camera.zoom
 	var screen_center := camera.get_screen_center_position()
-	var half_view := viewport_size * 0.5
-	var visible_rect := Rect2(screen_center - half_view, viewport_size)
+	var half_view := viewport_world * 0.5
+	var visible_rect := Rect2(screen_center - half_view, viewport_world)
 	var min_x := maxi(0, floori(visible_rect.position.x / TILE_SIZE) - 1)
 	var min_y := maxi(0, floori(visible_rect.position.y / TILE_SIZE) - 1)
 	var max_x := mini(map_size.x - 1, ceili(visible_rect.end.x / TILE_SIZE) + 1)
@@ -127,5 +127,8 @@ func _draw() -> void:
 			var tile := Vector2i(x, y)
 			if visible_tiles.has(tile):
 				continue
-			var rect := Rect2(Vector2(tile) * TILE_SIZE, Vector2.ONE * TILE_SIZE)
+			var world_position := Vector2(tile) * TILE_SIZE
+			var screen_position := (world_position - screen_center) * camera.zoom + viewport_pixels * 0.5
+			var screen_tile_size := Vector2.ONE * TILE_SIZE * camera.zoom
+			var rect := Rect2(screen_position, screen_tile_size)
 			draw_rect(rect, EXPLORED_COLOR if explored_tiles.has(tile) else UNKNOWN_COLOR)
