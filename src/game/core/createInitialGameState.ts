@@ -4,6 +4,7 @@ import { createMap } from "../Map";
 import { playerCharacter } from "../Character";
 import { orc } from "../Combat";
 import { createTurn } from "../Turn";
+import { createWorldClock } from "../time/WorldClock";
 
 export function createInitialGameState(): GameState {
   // Prototype exploration area: 120 x 80 squares.
@@ -34,6 +35,8 @@ export function createInitialGameState(): GameState {
     playerCharacter,
     orc
   ];
+
+  const worldClock = createWorldClock();
 
   /*
    * O jogo começa em EXPLORAÇÃO.
@@ -96,8 +99,24 @@ export function createInitialGameState(): GameState {
 
     turn,
 
+    worldClock,
+
+    hunger: {
+      [playerCharacter.id]: {
+        lastFoodAtSeconds: worldClock.totalSeconds,
+        starvationChecks: 0,
+        nonlethalDamage: 0
+      },
+      [orc.id]: {
+        lastFoodAtSeconds: worldClock.totalSeconds,
+        starvationChecks: 0,
+        nonlethalDamage: 0
+      }
+    },
+
     logs: [
-      "Exploração iniciada."
+      "Exploração iniciada.",
+      "Relógio do mundo iniciado no dia 1, 00:00."
     ]
   };
 }
