@@ -45,8 +45,9 @@ func apply_snapshot(snapshot: EntitySnapshot) -> void:
 		character_sprite.sprite_frames.set_animation_loop("IDLE", true)
 		if base_texture != null:
 			character_sprite.sprite_frames.add_frame("IDLE", base_texture)
-	if character_sprite.sprite_frames.has_animation("IDLE") and character_sprite.sprite_frames.get_frame_count("IDLE") > 0:
-		character_sprite.play("IDLE")
+	if animation_controller.current_state != CharacterAnimationState.State.INTERACT:
+		if character_sprite.sprite_frames.has_animation("IDLE") and character_sprite.sprite_frames.get_frame_count("IDLE") > 0:
+			character_sprite.play("IDLE")
 	character_sprite.visible = base_texture != null or _has_interact_animation()
 	queue_redraw()
 
@@ -54,7 +55,7 @@ func play_interact() -> void:
 	if animation_controller != null:
 		animation_controller.play_interact()
 
-func set_facing_direction(value: CharacterAnimationState.Direction) -> void:
+func set_facing_direction(value: int) -> void:
 	if animation_controller != null:
 		animation_controller.set_direction(value)
 
