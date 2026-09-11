@@ -41,6 +41,15 @@ func _process(_delta: float) -> void:
 		var view := player.get_node_or_null("EntityView") as EntityView
 		if view == null or view.animation_controller == null:
 			return
+
+		var state_variant: Variant = main.get("latest_state")
+		if state_variant is Dictionary and str((state_variant as Dictionary).get("mode", "EXPLORATION")) == "COMBAT":
+			var combat_target := _selected_target_id()
+			if combat_target.is_empty():
+				combat_target = _first_living_opponent_id(state_variant as Dictionary)
+			if not combat_target.is_empty():
+				_face_player_toward(state_variant as Dictionary, combat_target)
+
 		if view.animation_controller.current_state == CharacterAnimationState.State.IDLE or view.animation_controller.current_state == CharacterAnimationState.State.WALK:
 			view.animation_controller.set_state(
 				CharacterAnimationState.State.WALK if player.is_moving else CharacterAnimationState.State.IDLE,
@@ -74,9 +83,6 @@ func _on_action_resolved(action_result: Dictionary, snapshot: Dictionary) -> voi
 
 	var action := connected_game_core.last_requested_action if connected_game_core != null else {}
 	var action_actor_id := str(action.get("actorId", ""))
-
-	# The player's own successful attack is an ATTACK animation and immediately
-	# turns the character toward the actual selected target.
 	if action_actor_id == "player-01":
 		var player_view := _get_player_view()
 		if player_view == null or player_view.animation_controller == null:
@@ -104,21 +110,17 @@ func _play_block_from_ai_actions(snapshot: Dictionary) -> void:
 			continue
 		var action := action_variant as Dictionary
 		var result := result_variant as Dictionary
-		if str(action.get("type", "")) != "ATTACK":
-			continue
-		if str(action.get("targetId", "")) != "player-01":
+		if str(action.get("type", "")) != "ATTACK" or str(action.get("targetId", "")) != "player-01":
 			continue
 
 		_face_player_toward(snapshot, str(action.get("actorId", "")))
 		var data_variant: Variant = result.get("data", {})
 		if not data_variant is Dictionary:
 			continue
-		var data := data_variant as Dictionary
-		var attack_variant: Variant = data.get("attack", {})
+		var attack_variant: Variant = (data_variant as Dictionary).get("attack", {})
 		if not attack_variant is Dictionary:
 			continue
-		var attack := attack_variant as Dictionary
-		if not bool(attack.get("hit", true)):
+		if not bool((attack_variant as Dictionary).get("hit", true)):
 			player_view.animation_controller.play_state(CharacterAnimationState.State.BLOCK, false)
 			return
 
@@ -154,9 +156,8 @@ func _face_player_toward(snapshot: Dictionary, target_id: String) -> void:
 	if target_id.is_empty():
 		return
 	var state_variant: Variant = snapshot.get("state", {})
-	if not state_variant is Dictionary:
-		return
-	var entities_variant: Variant = (state_variant as Dictionary).get("entities", [])
+	var state: Dictionary = state_variant as Dictionary if state_variant is Dictionary else snapshot
+	var entities_variant: Variant = state.get("entities", [])
 	if not entities_variant is Array:
 		return
 	var player_position := Vector2i.ZERO
@@ -205,7 +206,7 @@ func _face_player_toward(snapshot: Dictionary, target_id: String) -> void:
 		direction = CharacterAnimationState.Direction.SOUTHWEST
 	var view := _get_player_view()
 	if view != null and view.animation_controller != null:
-		view.animation_controller.set_direction(direction)
+		view.set_facing_direction(direction)
 
 func _selected_target_id() -> String:
 	var main := get_tree().current_scene
