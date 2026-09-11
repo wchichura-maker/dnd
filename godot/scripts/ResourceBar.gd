@@ -17,7 +17,6 @@ var _fill: ColorRect
 var _value_label: Label
 
 const BACKGROUND_COLOR := Color("30261e")
-const BORDER_COLOR := Color("0b0908")
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -32,7 +31,7 @@ func _ready() -> void:
 	_background.position = Vector2.ZERO
 	_background.size = size
 	_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_background.z_as_relative = false
+	_background.z_as_relative = true
 	_background.z_index = 0
 	add_child(_background)
 
@@ -42,7 +41,7 @@ func _ready() -> void:
 	_fill.position = Vector2.ZERO
 	_fill.size = Vector2(0.0, size.y)
 	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_fill.z_as_relative = false
+	_fill.z_as_relative = true
 	_fill.z_index = 1
 	add_child(_fill)
 
@@ -51,7 +50,7 @@ func _ready() -> void:
 	_value_label.position = Vector2.ZERO
 	_value_label.size = size
 	_value_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_value_label.z_as_relative = false
+	_value_label.z_as_relative = true
 	_value_label.z_index = 2
 	_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -90,6 +89,7 @@ func _apply_ratio() -> void:
 	if _fill == null:
 		return
 
+	# Same proven ratio calculation used by the old overhead HP bar.
 	var ratio := clampf(current / maximum, 0.0, 1.0) if maximum > 0.0 else 0.0
 	_fill.size = Vector2(size.x * ratio, size.y)
 
