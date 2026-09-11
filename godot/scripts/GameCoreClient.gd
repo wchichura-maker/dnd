@@ -9,6 +9,7 @@ const BASE_URL: String = "http://127.0.0.1:8787"
 var http_request: HTTPRequest
 var busy: bool = false
 var latest_snapshot: Dictionary = {}
+var last_requested_action: Dictionary = {}
 
 func _ready() -> void:
 	http_request = HTTPRequest.new()
@@ -19,15 +20,19 @@ func request_state() -> void:
 	_request("GET", "/state", {})
 
 func request_action(action: Dictionary) -> void:
+	last_requested_action = action.duplicate(true)
 	_request("POST", "/action", action)
 
 func end_turn() -> void:
+	last_requested_action = {"type": "END_TURN"}
 	_request("POST", "/turn/end", {})
 
 func reset_game() -> void:
+	last_requested_action = {"type": "RESET"}
 	_request("POST", "/reset", {})
 
 func respawn_player() -> void:
+	last_requested_action = {"type": "RESPAWN", "actorId": "player-01"}
 	_request("POST", "/player/respawn", {})
 
 func _request(method: String, path: String, payload: Dictionary) -> void:
@@ -63,8 +68,6 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 		state_received.emit(payload)
 		return
 	if payload.has("actionResult"):
-		# Resolve presentation actions before publishing the resulting state so
-		# movement/animation controllers can claim the presentation transition
-		# before Main performs its authoritative-state reconciliation.
+		# Presentation systems can inspect the action requested immediately before this response.
 		action_resolved.emit(action_result, payload)
 	state_received.emit(payload)
