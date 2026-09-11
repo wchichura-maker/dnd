@@ -60,6 +60,11 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 	if response_code < 200 or response_code >= 300:
 		var message: String = str(action_result.get("message", payload.get("message", "Ação rejeitada pelo Game Core.")))
 		transport_error.emit(message)
-	state_received.emit(payload)
-	if response_code >= 200 and response_code < 300 and payload.has("actionResult"):
+		state_received.emit(payload)
+		return
+	if payload.has("actionResult"):
+		# Resolve presentation actions before publishing the resulting state so
+		# movement/animation controllers can claim the presentation transition
+		# before Main performs its authoritative-state reconciliation.
 		action_resolved.emit(action_result, payload)
+	state_received.emit(payload)
