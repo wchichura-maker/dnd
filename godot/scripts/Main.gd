@@ -2,7 +2,7 @@ extends Node2D
 
 const TILE_SIZE: float = 48.0
 const PLAYER_ID: String = "player-01"
-var map_size: Vector2i = Vector2i(26, 16)
+var map_size: Vector2i = Vector2i(120, 80)
 var blocked_tiles: Dictionary[Vector2i, bool] = {}
 var adapter: GameEntityAdapter
 var player: PlayerController
@@ -113,7 +113,7 @@ func _apply_map_state(state: Dictionary) -> void:
 	var map_variant: Variant = state.get("map", {})
 	if not map_variant is Dictionary: return
 	var map_data := map_variant as Dictionary
-	map_size = Vector2i(int(map_data.get("width", 26)), int(map_data.get("height", 16)))
+	map_size = Vector2i(int(map_data.get("width", 120)), int(map_data.get("height", 80)))
 	blocked_tiles.clear()
 	var tiles_variant: Variant = map_data.get("tiles", [])
 	if not tiles_variant is Array: return
@@ -269,7 +269,7 @@ func _update_initiative_panel(combat: Dictionary, state: Dictionary, mode: Strin
 			if entity_variant is Dictionary and str((entity_variant as Dictionary).get("id", "")) == id:
 				name = str((entity_variant as Dictionary).get("name", id))
 				break
-			parts.append(("> " if index == current_index else "") + name)
+		parts.append(("> " if index == current_index else "") + name)
 	initiative_label.text = "INICIATIVA  •  " + "  |  ".join(parts)
 
 func _update_hotbar(mode: String, active_id: String) -> void:
@@ -378,9 +378,11 @@ func _on_new_character() -> void:
 
 func _grid_to_world(grid_position: Vector2i) -> Vector2:
 	return Vector2(grid_position) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
+
 func _on_transport_error(message: String) -> void:
 	_set_debug_status("Game Core: erro\n%s" % message)
 	push_error(message)
+
 func _set_debug_status(text: String) -> void:
 	$DebugOverlay/Label.text = text
 
