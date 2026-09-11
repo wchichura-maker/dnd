@@ -36,8 +36,13 @@ func apply_snapshot(snapshot: EntitySnapshot) -> void:
 	max_hp = snapshot.max_hp
 	armor_class = snapshot.armor_class
 	_ensure_character_sprite()
+	if animation_controller == null or character_sprite == null:
+		return
 	animation_controller.set_entity_type(entity_type)
-	animation_controller.set_state(CharacterAnimationState.State.IDLE, true)
+	# Authoritative snapshots must not interrupt an animation that was just
+	# triggered by an action or damage event. The controller owns transitions.
+	if not animation_controller.has_playable_animation():
+		animation_controller.set_state(CharacterAnimationState.State.IDLE, true)
 	character_sprite.visible = entity_type == "PLAYER" and animation_controller.has_playable_animation()
 	queue_redraw()
 
