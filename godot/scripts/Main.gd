@@ -15,6 +15,7 @@ var latest_action_log: Array = []
 var death_screen_shown: bool = false
 var initiative_panel: PanelContainer
 var initiative_label: Label
+var last_draw_camera_center: Vector2 = Vector2.INF
 
 const PAPER_LIGHT := Color("e1d5b8")
 const PAPER_BURNED := Color("d6c9a8")
@@ -49,6 +50,15 @@ func _ready() -> void:
 	$DeathOverlay.visible = false
 	_set_debug_status("Game Core: conectando...")
 	game_core.request_state()
+
+func _process(_delta: float) -> void:
+	var camera := $Player/Camera2D as Camera2D
+	if camera == null:
+		return
+	var center := camera.get_screen_center_position()
+	if last_draw_camera_center == Vector2.INF or center.distance_squared_to(last_draw_camera_center) > 0.01:
+		last_draw_camera_center = center
+		queue_redraw()
 
 func _setup_initiative_panel() -> void:
 	initiative_panel = PanelContainer.new()
@@ -408,9 +418,8 @@ func _set_debug_status(text: String) -> void:
 	$DebugOverlay/Label.text = text
 
 func _draw() -> void:
-	# Keep the logical map large, but only submit the tiles that can actually
-	# enter the current camera viewport. Godot caches _draw() until queue_redraw,
-	# so camera motion reuses this command list instead of rebuilding it every frame.
+	# Only submit terrain cells that intersect the current camera viewport.
+	# The draw command list is cached by Godot until queue_redraw() is requested.
 	draw_rect(Rect2(Vector2.ZERO, Vector2(map_size) * TILE_SIZE), Color("151515"))
 	var camera := $Player/Camera2D as Camera2D
 	if camera == null:
