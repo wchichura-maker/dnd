@@ -10,6 +10,12 @@ import type { RelationshipEvent } from "../relationships/RelationshipEvent";
 import type { GameMode } from "./GameMode";
 import type { WorldClockState } from "../time/WorldClock";
 
+export type HungerState = {
+  lastFoodAtSeconds: number;
+  starvationChecks: number;
+  nonlethalDamage: number;
+};
+
 export type GameState = {
   map: GameMap;
   entities: Combatant[];
@@ -20,5 +26,6 @@ export type GameState = {
   combat: CombatState;
   turn: Turn;
   worldClock: WorldClockState;
+  hunger: Record<string, HungerState>;
   logs: string[];
 };
