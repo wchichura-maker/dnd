@@ -54,6 +54,9 @@ func play_interact() -> void:
 	current_state = CharacterAnimationState.State.INTERACT
 	_play_current_animation(false)
 
+func has_state_animation(state: int) -> bool:
+	return animated_sprite != null and animated_sprite.sprite_frames != null and animated_sprite.sprite_frames.has_animation(_animation_name(state))
+
 func _play_current_animation(loop: bool) -> void:
 	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
@@ -84,6 +87,8 @@ func _build_state_animations(state: int) -> void:
 	var frames := animated_sprite.sprite_frames
 	var state_name := CharacterAnimationState.State.keys()[state]
 	var fps := INTERACT_FPS if state == CharacterAnimationState.State.INTERACT else IDLE_FPS
+	var frame_width := float(sheet.get_width()) / float(SHEET_COLUMNS)
+	var frame_height := float(sheet.get_height()) / float(SHEET_ROWS)
 	for row in range(DIRECTION_COUNT):
 		var animation_name := "%s_%s" % [state_name, direction_names[row]]
 		if frames.has_animation(animation_name):
@@ -91,9 +96,6 @@ func _build_state_animations(state: int) -> void:
 		frames.add_animation(animation_name)
 		frames.set_animation_loop(animation_name, state != CharacterAnimationState.State.INTERACT)
 		frames.set_animation_speed(animation_name, fps)
-
-		var frame_width := float(sheet.get_width()) / float(SHEET_COLUMNS)
-		var frame_height := float(sheet.get_height()) / float(SHEET_ROWS)
 		for column in range(SHEET_COLUMNS):
 			var atlas := AtlasTexture.new()
 			atlas.atlas = sheet
