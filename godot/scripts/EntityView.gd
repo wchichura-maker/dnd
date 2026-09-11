@@ -36,6 +36,7 @@ func apply_snapshot(snapshot: EntitySnapshot) -> void:
 	max_hp = snapshot.max_hp
 	armor_class = snapshot.armor_class
 	_ensure_character_sprite()
+	animation_controller.set_entity_type(entity_type)
 	var base_texture := AssetRegistry.character_texture(entity_type)
 	if character_sprite.sprite_frames == null:
 		character_sprite.sprite_frames = SpriteFrames.new()
