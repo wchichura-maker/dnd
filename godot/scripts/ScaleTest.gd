@@ -35,7 +35,7 @@ func _draw() -> void:
 	_draw_text(Vector2(70.0, 82.0), "1 cell = 5 ft  •  base cell = 64 px  •  abstract adult proportions", 14, PAPER_BURNED)
 	_draw_text(Vector2(70.0, 108.0), "Compare the feet/footprint relationship, not the silhouette style.", 12, PAPER_SHADOW)
 	_draw_text(Vector2(1010.0, 82.0), "TARGET", 12, GOLD)
-	_draw_text(Vector2(1010.0, 104.0), "Medium ≈ 1.40 cells", 14, PAPER_LIGHT)
+	_draw_text(Vector2(1010.0, 104.0), "Medium ≈ 1.55 cells", 14, PAPER_LIGHT)
 	_draw_text(Vector2(1010.0, 126.0), "≈ %.0f px visual height" % VisualScale.medium_height_pixels(), 13, PAPER_SHADOW)
 
 func _draw_candidate(center: Vector2, height_cells: float) -> void:
@@ -70,7 +70,7 @@ func _draw_candidate(center: Vector2, height_cells: float) -> void:
 	# Soft directional ground shadow: upper-left light, shadow cast down-right.
 	_draw_ellipse(feet + Vector2(8.0, 4.0), Vector2(CELL * 0.25, CELL * 0.08), Color(WOOD_DARK, 0.42))
 
-	var is_target := is_equal_approx(height_cells, 1.40)
+	var is_target := is_equal_approx(height_cells, VisualScale.MEDIUM_VISUAL_HEIGHT_CELLS)
 	var line_color := GOLD if is_target else PAPER_SHADOW
 	draw_line(Vector2(center.x - CELL * 0.5, top), Vector2(center.x + CELL * 0.5, top), line_color, 1.0)
 	draw_line(Vector2(center.x - CELL * 0.5, feet.y), Vector2(center.x + CELL * 0.5, feet.y), line_color, 1.0)
