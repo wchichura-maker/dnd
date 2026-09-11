@@ -29,6 +29,7 @@ var presentation_state: String = STATE_DEFAULT
 @onready var level_badge: Label = $LevelBadge
 @onready var hp_bar: ResourceBar = $HPBar
 @onready var food_bar: ResourceBar = $FoodBar
+@onready var hp_value: Label = $HPValue
 @onready var selection_overlay: Panel = $SelectionOverlay
 
 func _ready() -> void:
@@ -37,6 +38,7 @@ func _ready() -> void:
 	$ClickTarget.pressed.connect(_on_pressed)
 	hp_bar.set_value(current_hp, max_hp)
 	food_bar.set_value(current_food, max_food)
+	hp_value.text = _format_hp()
 	level_badge.text = str(level)
 	_set_visuals()
 
@@ -53,6 +55,7 @@ func apply_data(data: Dictionary) -> void:
 	_resolve_state()
 	hp_bar.set_value(current_hp, max_hp)
 	food_bar.set_value(current_food, max_food)
+	hp_value.text = _format_hp()
 	level_badge.text = str(level)
 	_set_visuals()
 
@@ -65,6 +68,9 @@ func set_active(value: bool) -> void:
 	active = value
 	_resolve_state()
 	_set_visuals()
+
+func _format_hp() -> String:
+	return "%d/%d" % [roundi(current_hp), roundi(max_hp)]
 
 func _resolve_state() -> void:
 	if current_hp <= -10.0:
