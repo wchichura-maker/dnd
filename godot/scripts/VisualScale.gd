@@ -2,12 +2,14 @@ extends RefCounted
 
 ## D&D Online visual scale contract.
 ## This is presentation-only. D&D distances and creature footprints remain in Game Core.
-## The values below are the current scale-test target and are not final until visual review.
+## Grid size is deliberately independent from visual creature height.
 
 class_name VisualScale
 
+# 64 px is a convenient power-of-two raster unit for pixel-art textures,
+# atlases and integer camera/grid positioning. It does not affect Core rules.
 const GRID_CELL_PIXELS: float = 64.0
-const MEDIUM_VISUAL_HEIGHT_CELLS: float = 1.40
+const MEDIUM_VISUAL_HEIGHT_CELLS: float = 1.55
 const MEDIUM_VISUAL_WIDTH_CELLS_MIN: float = 0.45
 const MEDIUM_VISUAL_WIDTH_CELLS_MAX: float = 0.55
 
