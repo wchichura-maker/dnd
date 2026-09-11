@@ -12,13 +12,23 @@ var current: float = 0.0
 var maximum: float = 0.0
 var displayed_ratio: float = 0.0
 var _tween: Tween
+var _fill: ColorRect
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	z_as_relative = false
-	z_index = 20
-	queue_redraw()
+	z_as_relative = true
+	z_index = 100
+	_fill = ColorRect.new()
+	_fill.name = "Fill"
+	_fill.position = Vector2.ZERO
+	_fill.size = size
+	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fill.z_index = 100
+	_fill.color = fill_color
+	_fill.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(_fill)
+	_apply_fill(displayed_ratio)
 
 func set_value(new_current: float, new_maximum: float) -> void:
 	current = new_current
@@ -26,7 +36,7 @@ func set_value(new_current: float, new_maximum: float) -> void:
 	var target := clampf(current / maximum, 0.0, 1.0) if maximum > 0.0 else 0.0
 	if not is_node_ready() or not animate_changes:
 		displayed_ratio = target
-		queue_redraw()
+		_apply_fill(displayed_ratio)
 		return
 	if _tween != null and _tween.is_valid():
 		_tween.kill()
@@ -36,20 +46,17 @@ func set_value(new_current: float, new_maximum: float) -> void:
 	_tween.tween_property(self, "displayed_ratio", target, animation_duration)
 
 func _process(_delta: float) -> void:
-	queue_redraw()
+	_apply_fill(displayed_ratio)
 
-func _draw() -> void:
-	var bar_size := get_rect().size
-	if bar_size.x <= 0.0 or bar_size.y <= 0.0:
+func _apply_fill(ratio: float) -> void:
+	if _fill == null:
 		return
-
-	# O preenchimento é desenhado pelo sistema e fica explicitamente acima do frame.
-	# O fundo é mantido transparente para que a moldura original continue definindo o encaixe.
-	var ratio := clampf(displayed_ratio, 0.0, 1.0)
+	var clamped_ratio := clampf(ratio, 0.0, 1.0)
+	_fill.position = Vector2.ZERO
+	_fill.size = Vector2(size.x * clamped_ratio, size.y)
 	var active_color := fill_color
-	if ratio <= 0.25:
+	if clamped_ratio <= 0.25:
 		active_color = critical_fill_color
-	elif ratio <= 0.5:
+	elif clamped_ratio <= 0.5:
 		active_color = low_fill_color
-
-	draw_rect(Rect2(Vector2.ZERO, Vector2(bar_size.x * ratio, bar_size.y)), active_color)
+	_fill.color = active_color
