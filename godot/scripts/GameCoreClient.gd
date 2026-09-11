@@ -35,6 +35,14 @@ func respawn_player() -> void:
 	last_requested_action = {"type": "RESPAWN", "actorId": "player-01"}
 	_request("POST", "/player/respawn", {})
 
+func eat_food() -> void:
+	last_requested_action = {"type": "EAT", "actorId": "player-01"}
+	request_action(last_requested_action)
+
+func advance_world_time(seconds: int) -> void:
+	last_requested_action = {"type": "WORLD_TIME_ADVANCE", "seconds": seconds}
+	_request("POST", "/world/advance", {"seconds": seconds})
+
 func _request(method: String, path: String, payload: Dictionary) -> void:
 	if busy:
 		return
