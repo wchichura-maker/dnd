@@ -50,20 +50,17 @@ func set_facing_direction(value: int) -> void:
 		animation_controller.set_direction(value)
 
 func _ensure_character_sprite() -> void:
-	if character_sprite != null:
+	if character_sprite == null:
+		character_sprite = get_node_or_null("CharacterSprite") as AnimatedSprite2D
+	if character_sprite == null:
 		return
-	character_sprite = AnimatedSprite2D.new()
-	character_sprite.name = "CharacterSprite"
 	character_sprite.centered = true
 	character_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	character_sprite.scale = Vector2(0.42, 0.42)
-	character_sprite.position = Vector2(0, -5)
-	add_child(character_sprite)
-
-	animation_controller = CharacterAnimationController.new()
-	animation_controller.name = "AnimationController"
-	add_child(animation_controller)
-	animation_controller.configure(character_sprite)
+	if animation_controller == null:
+		animation_controller = CharacterAnimationController.new()
+		animation_controller.name = "AnimationController"
+		add_child(animation_controller)
+		animation_controller.configure(character_sprite)
 
 func _draw() -> void:
 	var ring_color: Color = GOLD if selected else LEATHER
