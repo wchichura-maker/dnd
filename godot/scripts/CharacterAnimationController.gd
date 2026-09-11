@@ -13,9 +13,9 @@ const INTERACT_DIRECTION_COUNT: int = 8
 
 var animated_sprite: AnimatedSprite2D
 var entity_type: String = "PLAYER"
-var current_state: CharacterAnimationState.State = CharacterAnimationState.State.IDLE
-var previous_state: CharacterAnimationState.State = CharacterAnimationState.State.IDLE
-var direction: CharacterAnimationState.Direction = CharacterAnimationState.Direction.SOUTH
+var current_state: int = CharacterAnimationState.State.IDLE
+var previous_state: int = CharacterAnimationState.State.IDLE
+var direction: int = CharacterAnimationState.Direction.SOUTH
 var direction_names: Array[String] = [
 	"SOUTH", "SOUTHEAST", "EAST", "NORTHEAST",
 	"NORTH", "NORTHWEST", "WEST", "SOUTHWEST"
@@ -34,12 +34,12 @@ func set_entity_type(value: String) -> void:
 	entity_type = value
 	_build_interact_animations()
 
-func set_direction(value: CharacterAnimationState.Direction) -> void:
-	direction = value
+func set_direction(value: int) -> void:
+	direction = clampi(value, 0, INTERACT_DIRECTION_COUNT - 1)
 	if current_state == CharacterAnimationState.State.INTERACT:
 		_play_current_animation(false)
 
-func set_state(value: CharacterAnimationState.State, loop := true) -> void:
+func set_state(value: int, loop := true) -> void:
 	if current_state != value:
 		previous_state = current_state
 	current_state = value
@@ -70,7 +70,7 @@ func _on_animation_finished() -> void:
 	current_state = return_state
 	_play_current_animation(true)
 
-func _animation_name(state: CharacterAnimationState.State) -> String:
+func _animation_name(state: int) -> String:
 	if state == CharacterAnimationState.State.INTERACT:
 		return "INTERACT_%s" % direction_names[direction]
 	return CharacterAnimationState.State.keys()[state]
