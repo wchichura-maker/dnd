@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/EntityView.gd" id="1_entity_view"]
+
+[node name="EntityView" type="Node2D"]
+script = ExtResource("1_entity_view")
+
+[node name="CharacterSprite" type="AnimatedSprite2D" parent="."]
+centered = true
+texture_filter = 1
+scale = Vector2(0.42, 0.42)
+position = Vector2(0, -5)
