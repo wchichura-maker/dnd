@@ -4,14 +4,9 @@ class_name CameraController
 ## World camera: independent from the player transform.
 ## FOLLOW keeps the player framed. FREE lets the player inspect the nearby world.
 ## Camera movement never changes authoritative game state or perception.
-##
-## The free-camera window is intentionally bounded to 60 ft (12 squares).
-## D&D 3.5 uses 5 ft per grid square, and 60 ft is a common explicit
-## sight/sensing reference. This is a presentation ceiling for the prototype.
 
 const PAN_SPEED_CELLS: float = 8.0
 const CAMERA_RADIUS_CELLS: float = 12.0
-const FOCUS_DURATION: float = 0.24
 const GRID_CELL_PIXELS: float = 48.0
 
 var follow_target: Node2D
@@ -19,10 +14,8 @@ var free_mode: bool = false
 var map_size: Vector2i = Vector2i(120, 80)
 
 func _ready() -> void:
-	# Stop inheriting Player movement so free camera motion is independent.
 	top_level = true
-	position_smoothing_enabled = true
-	position_smoothing_speed = 7.0
+	position_smoothing_enabled = false
 	enabled = true
 	follow_target = get_parent() as Node2D
 	if follow_target != null:
@@ -40,10 +33,7 @@ func _process(delta: float) -> void:
 	_sync_map_size_from_main()
 
 	if Input.is_key_pressed(KEY_SPACE):
-		if free_mode:
-			focus_player()
-		else:
-			_follow_player()
+		_follow_player()
 		return
 
 	var input_direction := Vector2.ZERO
@@ -62,16 +52,11 @@ func _process(delta: float) -> void:
 		_follow_player()
 
 func focus_player() -> void:
-	if follow_target == null:
-		return
-	free_mode = false
-	var tween := create_tween()
-	tween.set_trans(Tween.TRANS_QUAD)
-	tween.set_ease(Tween.EASE_OUT)
-	tween.tween_property(self, "global_position", follow_target.global_position, FOCUS_DURATION)
+	_follow_player()
 
 func _follow_player() -> void:
 	if follow_target != null:
+		free_mode = false
 		global_position = follow_target.global_position
 		_clamp_to_map()
 
@@ -89,8 +74,6 @@ func _apply_limits() -> void:
 	limit_top = 0
 	limit_right = int(map_size.x * GRID_CELL_PIXELS)
 	limit_bottom = int(map_size.y * GRID_CELL_PIXELS)
-	# The script performs the final clamp. Letting Camera2D smooth its limits as
-	# well creates a small oscillation when the free camera reaches a map edge.
 	limit_smoothed = false
 
 func _clamp_to_map() -> void:
