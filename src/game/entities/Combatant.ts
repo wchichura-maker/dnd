@@ -18,6 +18,10 @@ export type Combatant = Entity & {
   hp: number;
   maxHp: number;
 
+  /** Survival resource displayed by the HUD when present. */
+  food?: number;
+  maxFood?: number;
+
   movement: number;
 
   initiative: number;
