@@ -12,18 +12,48 @@ function key(point: Point): string {
   return `${point.x},${point.y}`;
 }
 
+function blocksVision(map: GameMap, x: number, y: number): boolean {
+  const tile = map.tiles[y]?.[x];
+  return tile !== undefined && !tile.walkable;
+}
+
 function hasLineOfSight(map: GameMap, from: Point, to: Point): boolean {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
-  const steps = Math.max(Math.abs(dx), Math.abs(dy));
-  if (steps === 0) return true;
+  const stepX = Math.sign(dx);
+  const stepY = Math.sign(dy);
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
 
-  for (let step = 1; step < steps; step++) {
-    const t = step / steps;
-    const x = Math.round(from.x + dx * t);
-    const y = Math.round(from.y + dy * t);
-    const tile = map.tiles[y]?.[x];
-    if (tile && !tile.walkable) return false;
+  if (absDx === 0 && absDy === 0) return true;
+
+  let x = from.x;
+  let y = from.y;
+  let ix = 0;
+  let iy = 0;
+
+  while (ix < absDx || iy < absDy) {
+    const tx = (ix + 0.5) / Math.max(1, absDx);
+    const ty = (iy + 0.5) / Math.max(1, absDy);
+
+    if (absDx === 0 || (absDy !== 0 && tx > ty)) {
+      x += stepX;
+      ix += 1;
+    } else if (absDy === 0 || tx < ty) {
+      y += stepY;
+      iy += 1;
+    } else {
+      const nextX = x + stepX;
+      const nextY = y + stepY;
+      if (blocksVision(map, nextX, y) || blocksVision(map, x, nextY)) return false;
+      x = nextX;
+      y = nextY;
+      ix += 1;
+      iy += 1;
+    }
+
+    if (x === to.x && y === to.y) break;
+    if (blocksVision(map, x, y)) return false;
   }
 
   return true;
