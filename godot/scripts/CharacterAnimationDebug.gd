@@ -31,7 +31,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if DIRECTION_KEYS.has(key_event.keycode):
-		var direction: CharacterAnimationState.Direction = DIRECTION_KEYS[key_event.keycode]
+		var direction: int = int(DIRECTION_KEYS[key_event.keycode])
 		var view := _get_player_view()
 		if view != null:
 			view.set_facing_direction(direction)
