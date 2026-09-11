@@ -5,6 +5,7 @@ import type { ActionResult } from "../actions/ActionResult";
 import type { GameEngineEncounterActions } from "../core/GameEngineEncounterActions";
 
 export type AiTurnEvent = {
+  before: ReturnType<GameEngineEncounterActions["getState"]>;
   action: GameAction;
   result: ActionResult;
   movementPath: Array<{ x: number; y: number }>;
@@ -33,63 +34,35 @@ export function runAiTurns(
   let guard = 0;
 
   while (engine.isCombatMode() && guard < maxTurns) {
-    const state = engine.getState();
+    const before = engine.getState();
     const active = engine.getActiveEntity();
 
     if (!active || active.controller !== "AI") {
-      return {
-        events,
-        stoppedByGuard: false,
-        stoppedBecauseCombatEnded: false
-      };
+      return { events, stoppedByGuard: false, stoppedBecauseCombatEnded: false };
     }
 
-    const action = chooseAction(
-      active,
-      state.entities,
-      state.relationships,
-      state.map
-    ) as GameAction;
-
+    const action = chooseAction(active, before.entities, before.relationships, before.map) as GameAction;
     const movementPath = action.destination
-      ? findPath(
-          state.map,
-          state.entities,
-          active.position,
-          action.destination,
-          active.id
-        )?.path ?? []
+      ? findPath(before.map, before.entities, active.position, action.destination, active.id)?.path ?? []
       : [];
 
     const result = engine.executeAction(action);
-    const event: AiTurnEvent = { action, result, movementPath };
+    const event: AiTurnEvent = { before, action, result, movementPath };
     events.push(event);
 
     if (!result.success) {
-      return {
-        events,
-        stoppedByGuard: false,
-        stoppedBecauseCombatEnded: !engine.isCombatMode()
-      };
+      return { events, stoppedByGuard: false, stoppedBecauseCombatEnded: !engine.isCombatMode() };
     }
 
     if (!engine.isCombatMode()) {
-      return {
-        events,
-        stoppedByGuard: false,
-        stoppedBecauseCombatEnded: true
-      };
+      return { events, stoppedByGuard: false, stoppedBecauseCombatEnded: true };
     }
 
     const endTurn = engine.endTurn();
     event.endTurn = endTurn;
 
     if (!endTurn.success) {
-      return {
-        events,
-        stoppedByGuard: false,
-        stoppedBecauseCombatEnded: !engine.isCombatMode()
-      };
+      return { events, stoppedByGuard: false, stoppedBecauseCombatEnded: !engine.isCombatMode() };
     }
 
     guard++;
