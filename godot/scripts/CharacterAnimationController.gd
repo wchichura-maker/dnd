@@ -28,11 +28,16 @@ func configure(sprite: AnimatedSprite2D) -> void:
 	_play_current_animation()
 
 func set_entity_type(value: String) -> void:
+	if entity_type == value:
+		return
 	entity_type = value
 	_play_current_animation()
 
 func set_direction(value: int) -> void:
-	direction = clampi(value, 0, DIRECTION_COUNT - 1)
+	var new_direction := clampi(value, 0, DIRECTION_COUNT - 1)
+	if direction == new_direction:
+		return
+	direction = new_direction
 	_play_current_animation()
 
 func set_state(value: int, loop := true) -> void:
