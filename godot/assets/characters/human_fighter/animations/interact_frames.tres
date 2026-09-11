@@ -1,0 +1,4 @@
+[gd_resource type="SpriteFrames" load_steps=50 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/characters/human_fighter/animations/interact.png" id="1_sheet"]
+
