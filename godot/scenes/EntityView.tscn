@@ -1,11 +1,14 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/EntityView.gd" id="1_entity_view"]
+[ext_resource type="SpriteFrames" path="res://assets/characters/human_fighter/animations/interact_frames.tres" id="2_interact"]
 
 [node name="EntityView" type="Node2D"]
 script = ExtResource("1_entity_view")
 
 [node name="CharacterSprite" type="AnimatedSprite2D" parent="."]
+sprite_frames = ExtResource("2_interact")
+animation = &"INTERACT_SOUTH"
 centered = true
 texture_filter = 1
 scale = Vector2(0.42, 0.42)
