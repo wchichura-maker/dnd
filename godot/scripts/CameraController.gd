@@ -2,20 +2,25 @@ extends Camera2D
 class_name CameraController
 
 ## World camera: independent from the player transform.
-## FOLLOW keeps the player framed. FREE lets the player inspect the world.
+## FOLLOW keeps the player framed. FREE lets the player inspect the nearby world.
 ## Camera movement never changes authoritative game state or perception.
+##
+## The free-camera window is intentionally bounded to 60 ft (12 squares).
+## D&D 3.5 uses 5 ft per grid square, and 60 ft is a common explicit
+## sight/sensing reference (for example, standard darkvision). This is a
+## presentation ceiling for the prototype, not the final perception rule.
 
 const PAN_SPEED_CELLS: float = 8.0
+const CAMERA_RADIUS_CELLS: float = 12.0
 const FOCUS_DURATION: float = 0.24
 const GRID_CELL_PIXELS: float = 48.0
 
 var follow_target: Node2D
 var free_mode: bool = false
-var map_size: Vector2i = Vector2i(26, 16)
+var map_size: Vector2i = Vector2i(120, 80)
 
 func _ready() -> void:
-	# Keep the camera in the scene for now, but stop inheriting Player movement.
-	# This is important: free camera motion must not be coupled to the actor transform.
+	# Stop inheriting Player movement so free camera motion is independent.
 	top_level = true
 	position_smoothing_enabled = true
 	position_smoothing_speed = 7.0
@@ -53,6 +58,7 @@ func _process(delta: float) -> void:
 		input_direction = input_direction.normalized()
 		global_position += input_direction * GRID_CELL_PIXELS * PAN_SPEED_CELLS * delta
 		_clamp_to_map()
+		_clamp_to_player_window()
 	elif not free_mode:
 		_follow_player()
 
@@ -68,6 +74,7 @@ func focus_player() -> void:
 func _follow_player() -> void:
 	if follow_target != null:
 		global_position = follow_target.global_position
+		_clamp_to_map()
 
 func _sync_map_size_from_main() -> void:
 	var player_node := get_parent()
@@ -97,3 +104,12 @@ func _clamp_to_map() -> void:
 		global_position.y = map_size_pixels.y * 0.5
 	else:
 		global_position.y = clampf(global_position.y, half_view.y, map_size_pixels.y - half_view.y)
+
+func _clamp_to_player_window() -> void:
+	if follow_target == null:
+		return
+	var radius_pixels := CAMERA_RADIUS_CELLS * GRID_CELL_PIXELS
+	var target := follow_target.global_position
+	global_position.x = clampf(global_position.x, target.x - radius_pixels, target.x + radius_pixels)
+	global_position.y = clampf(global_position.y, target.y - radius_pixels, target.y + radius_pixels)
+	_clamp_to_map()
