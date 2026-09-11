@@ -51,6 +51,7 @@ func set_state(value: int, loop := true) -> void:
 	current_state = value
 	if value == CharacterAnimationState.State.DEATH:
 		death_locked = true
+		loop = true
 	_play_current_animation(loop)
 
 func clear_death_lock() -> void:
@@ -74,6 +75,7 @@ func play_state(state: int, loop := false) -> void:
 	current_state = state
 	if state == CharacterAnimationState.State.DEATH:
 		death_locked = true
+		loop = true
 	_play_current_animation(loop)
 
 func has_state_animation(state: int) -> bool:
@@ -93,16 +95,18 @@ func _play_current_animation(loop_override: Variant = null) -> void:
 	if animation_name.is_empty() or not animated_sprite.sprite_frames.has_animation(animation_name):
 		return
 	var loop := _default_loop_for_state(current_state) if loop_override == null else bool(loop_override)
+	if current_state == CharacterAnimationState.State.DEATH:
+		loop = true
 	animated_sprite.sprite_frames.set_animation_loop(animation_name, loop)
 	animated_sprite.sprite_frames.set_animation_speed(animation_name, ANIMATION_FPS)
 	if animated_sprite.animation != animation_name:
 		animated_sprite.play(animation_name)
-	elif not animated_sprite.is_playing() and not (current_state == CharacterAnimationState.State.DEATH and animated_sprite.frame >= animated_sprite.sprite_frames.get_frame_count(animation_name) - 1):
+	elif not animated_sprite.is_playing():
 		animated_sprite.play(animation_name)
 
 func _on_animation_finished() -> void:
 	if current_state == CharacterAnimationState.State.DEATH:
-		animated_sprite.stop()
+		animated_sprite.play(_animation_name(CharacterAnimationState.State.DEATH))
 		return
 	if current_state == CharacterAnimationState.State.WALK or current_state == CharacterAnimationState.State.IDLE:
 		return
@@ -113,7 +117,7 @@ func _on_animation_finished() -> void:
 	_play_current_animation()
 
 func _default_loop_for_state(state: int) -> bool:
-	return state == CharacterAnimationState.State.WALK or state == CharacterAnimationState.State.IDLE
+	return state == CharacterAnimationState.State.WALK or state == CharacterAnimationState.State.IDLE or state == CharacterAnimationState.State.DEATH
 
 func _animation_name(state: int) -> String:
 	var state_names: Array = CharacterAnimationState.State.keys()
