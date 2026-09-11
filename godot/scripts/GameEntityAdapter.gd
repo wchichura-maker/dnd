@@ -6,11 +6,14 @@ extends Node
 class_name GameEntityAdapter
 
 const TILE_SIZE: float = 48.0
+const ENTITY_VIEW_SCENE: PackedScene = preload("res://scenes/EntityView.tscn")
 
 func bind_entity(node: Node2D, snapshot: EntitySnapshot) -> EntityView:
 	var view: EntityView = node.get_node_or_null("EntityView") as EntityView
 	if view == null:
-		view = EntityView.new()
+		view = ENTITY_VIEW_SCENE.instantiate() as EntityView
+		if view == null:
+			return null
 		view.name = "EntityView"
 		node.add_child(view)
 
