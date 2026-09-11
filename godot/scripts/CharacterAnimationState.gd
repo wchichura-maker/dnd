@@ -11,6 +11,7 @@ enum State {
 	ATTACK,
 	HIT,
 	DEATH,
+	DEAD,
 	BLOCK,
 	INTERACT
 }
