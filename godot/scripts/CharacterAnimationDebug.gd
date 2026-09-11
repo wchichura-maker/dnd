@@ -1,7 +1,7 @@
 extends Node
 
 ## Presentation bridge for validating and driving character animations.
-## F1-F8 select directions; I plays INTERACT.
+## F1-F8 select directions; I plays INTERACT; B plays BLOCK.
 
 const DIRECTION_KEYS := {
 	KEY_F1: CharacterAnimationState.Direction.SOUTH,
@@ -56,6 +56,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		var view := _get_player_view()
 		if view != null:
 			view.play_interact()
+		return
+
+	if key_event.keycode == KEY_B:
+		var view := _get_player_view()
+		if view != null and view.animation_controller != null:
+			view.animation_controller.play_state(CharacterAnimationState.State.BLOCK, false)
 		return
 
 	if DIRECTION_KEYS.has(key_event.keycode):
