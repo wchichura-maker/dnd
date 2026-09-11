@@ -13,6 +13,7 @@ var entity_type: String = "PLAYER"
 var current_state: int = CharacterAnimationState.State.IDLE
 var previous_state: int = CharacterAnimationState.State.IDLE
 var direction: int = CharacterAnimationState.Direction.SOUTH
+var death_locked: bool = false
 var direction_names: Array[String] = [
 	"SOUTH", "SOUTHEAST", "EAST", "NORTHEAST",
 	"NORTH", "NORTHWEST", "WEST", "SOUTHWEST"
@@ -34,6 +35,8 @@ func set_entity_type(value: String) -> void:
 	_play_current_animation()
 
 func set_direction(value: int) -> void:
+	if death_locked:
+		return
 	var new_direction := clampi(value, 0, DIRECTION_COUNT - 1)
 	if direction == new_direction:
 		return
@@ -41,10 +44,21 @@ func set_direction(value: int) -> void:
 	_play_current_animation()
 
 func set_state(value: int, loop := true) -> void:
+	if death_locked and value != CharacterAnimationState.State.DEATH:
+		return
 	if current_state != value:
 		previous_state = current_state
 	current_state = value
+	if value == CharacterAnimationState.State.DEATH:
+		death_locked = true
 	_play_current_animation(loop)
+
+func clear_death_lock() -> void:
+	death_locked = false
+	if current_state == CharacterAnimationState.State.DEATH:
+		current_state = CharacterAnimationState.State.IDLE
+		previous_state = CharacterAnimationState.State.IDLE
+	_play_current_animation(true)
 
 func play_interact() -> void:
 	play_state(CharacterAnimationState.State.INTERACT, false)
@@ -52,10 +66,14 @@ func play_interact() -> void:
 func play_state(state: int, loop := false) -> void:
 	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
+	if death_locked and state != CharacterAnimationState.State.DEATH:
+		return
 	if not animated_sprite.sprite_frames.has_animation(_animation_name(state)):
 		return
 	previous_state = current_state
 	current_state = state
+	if state == CharacterAnimationState.State.DEATH:
+		death_locked = true
 	_play_current_animation(loop)
 
 func has_state_animation(state: int) -> bool:
@@ -79,12 +97,10 @@ func _play_current_animation(loop_override: Variant = null) -> void:
 	animated_sprite.sprite_frames.set_animation_speed(animation_name, ANIMATION_FPS)
 	if animated_sprite.animation != animation_name:
 		animated_sprite.play(animation_name)
-	elif not animated_sprite.is_playing():
+	elif not animated_sprite.is_playing() and not (current_state == CharacterAnimationState.State.DEATH and animated_sprite.frame >= animated_sprite.sprite_frames.get_frame_count(animation_name) - 1):
 		animated_sprite.play(animation_name)
 
 func _on_animation_finished() -> void:
-	# Death is terminal for the current character. Keep the final DEATH frame
-	# visible instead of returning to the previous state (normally IDLE).
 	if current_state == CharacterAnimationState.State.DEATH:
 		animated_sprite.stop()
 		return
