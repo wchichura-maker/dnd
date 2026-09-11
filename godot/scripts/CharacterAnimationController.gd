@@ -43,7 +43,7 @@ func set_direction(value: int) -> void:
 	direction = new_direction
 	_play_current_animation()
 
-func set_state(value: int, loop := true) -> void:
+func set_state(value: int, loop: Variant = null) -> void:
 	if death_locked and value != CharacterAnimationState.State.DEATH:
 		return
 	if current_state != value:
@@ -51,7 +51,6 @@ func set_state(value: int, loop := true) -> void:
 	current_state = value
 	if value == CharacterAnimationState.State.DEATH:
 		death_locked = true
-		loop = true
 	_play_current_animation(loop)
 
 func clear_death_lock() -> void:
@@ -64,7 +63,7 @@ func clear_death_lock() -> void:
 func play_interact() -> void:
 	play_state(CharacterAnimationState.State.INTERACT, false)
 
-func play_state(state: int, loop := false) -> void:
+func play_state(state: int, loop: Variant = null) -> void:
 	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
 	if death_locked and state != CharacterAnimationState.State.DEATH:
@@ -75,7 +74,6 @@ func play_state(state: int, loop := false) -> void:
 	current_state = state
 	if state == CharacterAnimationState.State.DEATH:
 		death_locked = true
-		loop = true
 	_play_current_animation(loop)
 
 func has_state_animation(state: int) -> bool:
@@ -95,8 +93,6 @@ func _play_current_animation(loop_override: Variant = null) -> void:
 	if animation_name.is_empty() or not animated_sprite.sprite_frames.has_animation(animation_name):
 		return
 	var loop := _default_loop_for_state(current_state) if loop_override == null else bool(loop_override)
-	if current_state == CharacterAnimationState.State.DEATH:
-		loop = true
 	animated_sprite.sprite_frames.set_animation_loop(animation_name, loop)
 	animated_sprite.sprite_frames.set_animation_speed(animation_name, ANIMATION_FPS)
 	if animated_sprite.animation != animation_name:
@@ -105,19 +101,36 @@ func _play_current_animation(loop_override: Variant = null) -> void:
 		animated_sprite.play(animation_name)
 
 func _on_animation_finished() -> void:
-	if current_state == CharacterAnimationState.State.DEATH:
-		animated_sprite.play(_animation_name(CharacterAnimationState.State.DEATH))
+	var finished_state := current_state
+	var finished_animation := _animation_name(finished_state)
+	var frame_count := animated_sprite.sprite_frames.get_frame_count(finished_animation)
+
+	# Death plays once and freezes permanently on its final frame.
+	if finished_state == CharacterAnimationState.State.DEATH:
+		if frame_count > 0:
+			animated_sprite.frame = frame_count - 1
+		animated_sprite.stop()
 		return
-	if current_state == CharacterAnimationState.State.WALK or current_state == CharacterAnimationState.State.IDLE:
+
+	# IDLE and WALK are the only looping states.
+	if finished_state == CharacterAnimationState.State.WALK or finished_state == CharacterAnimationState.State.IDLE:
 		return
+
+	# Action states play exactly once. Reset their animation to frame 0 before
+	# returning to the previous persistent state so they never remain on a stale
+	# action frame and never loop.
+	animated_sprite.stop()
+	if frame_count > 0:
+		animated_sprite.frame = 0
+
 	var return_state := previous_state
-	if return_state == current_state or not has_state_animation(return_state):
+	if return_state == finished_state or not has_state_animation(return_state):
 		return_state = CharacterAnimationState.State.IDLE
 	current_state = return_state
-	_play_current_animation()
+	_play_current_animation(_default_loop_for_state(return_state))
 
 func _default_loop_for_state(state: int) -> bool:
-	return state == CharacterAnimationState.State.WALK or state == CharacterAnimationState.State.IDLE or state == CharacterAnimationState.State.DEATH
+	return state == CharacterAnimationState.State.WALK or state == CharacterAnimationState.State.IDLE
 
 func _animation_name(state: int) -> String:
 	var state_names: Array = CharacterAnimationState.State.keys()
