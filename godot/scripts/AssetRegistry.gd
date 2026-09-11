@@ -25,7 +25,7 @@ static func character_texture(entity_type: String) -> Texture2D:
 	var path := CHARACTER_PLAYER if entity_type == "PLAYER" else CHARACTER_NPC
 	return _load_texture(path)
 
-static func animation_sheet(state: CharacterAnimationState.State, entity_type: String) -> Texture2D:
+static func animation_sheet(state: int, entity_type: String) -> Texture2D:
 	if entity_type != "PLAYER":
 		return null
 	if state == CharacterAnimationState.State.INTERACT:
