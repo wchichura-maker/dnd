@@ -36,7 +36,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_tree().quit()
 
 func select_destination(world_position: Vector2) -> void:
-	if player == null or game_core == null or player.is_moving or game_core.busy:
+	if player == null or game_core == null or player.is_moving or not player.can_receive_movement_input or game_core.busy:
 		return
 	var destination := world_to_grid(world_position)
 	game_core.request_action({
@@ -53,6 +53,13 @@ func _on_state_received(snapshot: Dictionary) -> void:
 	var state_variant: Variant = snapshot.get("state", {})
 	if state_variant is Dictionary:
 		var state := state_variant as Dictionary
+		var player_alive := false
+		for entity_variant in state.get("entities", []) as Array:
+			if entity_variant is Dictionary and str((entity_variant as Dictionary).get("id", "")) == "player-01":
+				player_alive = int((entity_variant as Dictionary).get("hp", 0)) > -10
+				break
+		if player != null:
+			player.set_alive(player_alive)
 		if str(state.get("mode", "EXPLORATION")) == "COMBAT":
 			var combat := state.get("combat", {}) as Dictionary
 			var turn_order := combat.get("turnOrder", []) as Array
@@ -76,4 +83,5 @@ func _on_action_resolved(action_result: Dictionary, snapshot: Dictionary) -> voi
 			movement_path.append(Vector2i(int(position.get("x", 0)), int(position.get("y", 0))))
 	if movement_path.is_empty():
 		return
-	player.move_along_path(movement_path, STEP_DURATION)
+	if player != null and player.can_receive_movement_input:
+		player.move_along_path(movement_path, STEP_DURATION)
