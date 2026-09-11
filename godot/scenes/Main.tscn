@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/PlayerController.gd" id="2_player"]
@@ -11,6 +11,30 @@ border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
 border_color = Color(0.69, 0.541, 0.302, 0.7)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleSoftPanel"]
+bg_color = Color(0.188, 0.149, 0.118, 0.72)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.69, 0.541, 0.302, 0.45)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleSlot"]
+bg_color = Color(0.188, 0.149, 0.118, 0.84)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.69, 0.541, 0.302, 0.6)
 corner_radius_top_left = 2
 corner_radius_top_right = 2
 corner_radius_bottom_right = 2
@@ -43,55 +67,246 @@ script = ExtResource("3_movement")
 [node name="Panel" type="PanelContainer" parent="CombatHUD"]
 offset_left = 18.0
 offset_top = 18.0
-offset_right = 430.0
-offset_bottom = 500.0
+offset_right = 370.0
+offset_bottom = 230.0
 theme_override_styles/panel = SubResource("StylePanel")
 
 [node name="Margin" type="MarginContainer" parent="CombatHUD/Panel"]
 theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 12
+theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 12
+theme_override_constants/margin_bottom = 10
 
 [node name="VBox" type="VBoxContainer" parent="CombatHUD/Panel/Margin"]
-theme_override_constants/separation = 8
+theme_override_constants/separation = 5
+
+[node name="Header" type="Label" parent="CombatHUD/Panel/Margin/VBox"]
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+theme_override_font_sizes/font_size = 11
+text = "COMBATE"
 
 [node name="Status" type="Label" parent="CombatHUD/Panel/Margin/VBox"]
 theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 14
 text = "Game Core: conectando..."
 
 [node name="Target" type="Label" parent="CombatHUD/Panel/Margin/VBox"]
 theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 13
 text = "Alvo: nenhum"
 
 [node name="Attack" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
 theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
 theme_override_colors/font_hover_color = Color(0.69, 0.541, 0.302, 1)
+theme_override_colors/font_disabled_color = Color(0.45, 0.42, 0.36, 1)
+theme_override_font_sizes/font_size = 13
 text = "Atacar alvo"
 flat = true
 
 [node name="CoupDeGrace" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
 theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
 theme_override_colors/font_hover_color = Color(0.69, 0.541, 0.302, 1)
+theme_override_colors/font_disabled_color = Color(0.45, 0.42, 0.36, 1)
+theme_override_font_sizes/font_size = 13
 text = "Golpe de Misericórdia"
 flat = true
 
 [node name="EndTurn" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
 theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
 theme_override_colors/font_hover_color = Color(0.69, 0.541, 0.302, 1)
+theme_override_colors/font_disabled_color = Color(0.45, 0.42, 0.36, 1)
+theme_override_font_sizes/font_size = 13
 text = "Encerrar turno"
 flat = true
 
-[node name="ActionLog" type="Label" parent="CombatHUD/Panel/Margin/VBox"]
-custom_minimum_size = Vector2(0, 280)
+[node name="PartyPanel" type="PanelContainer" parent="CombatHUD"]
+offset_left = 18.0
+offset_top = 242.0
+offset_right = 370.0
+offset_bottom = 330.0
+theme_override_styles/panel = SubResource("StyleSoftPanel")
+
+[node name="Margin" type="MarginContainer" parent="CombatHUD/PartyPanel"]
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="Label" type="Label" parent="CombatHUD/PartyPanel/Margin"]
 theme_override_colors/font_color = Color(0.714, 0.655, 0.514, 1)
 theme_override_font_sizes/font_size = 11
+text = "GRUPO\nKael   30/30   —   Ativo\nOrc    —/—    —   Hostil"
+
+[node name="LocationPanel" type="PanelContainer" parent="CombatHUD"]
+offset_left = 1040.0
+offset_top = 18.0
+offset_right = 1262.0
+offset_bottom = 116.0
+theme_override_styles/panel = SubResource("StyleSoftPanel")
+
+[node name="Margin" type="MarginContainer" parent="CombatHUD/LocationPanel"]
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 9
+
+[node name="Label" type="Label" parent="CombatHUD/LocationPanel/Margin"]
+theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
+theme_override_font_sizes/font_size = 12
+text = "IRIAEBOR\nLOCALIZAÇÃO DESCONHECIDA\nMapa  •  Dia"
+horizontal_alignment = 2
+
+[node name="QuestPanel" type="PanelContainer" parent="CombatHUD"]
+offset_left = 1010.0
+offset_top = 130.0
+offset_right = 1262.0
+offset_bottom = 260.0
+theme_override_styles/panel = SubResource("StyleSoftPanel")
+
+[node name="Margin" type="MarginContainer" parent="CombatHUD/QuestPanel"]
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 9
+
+[node name="Label" type="Label" parent="CombatHUD/QuestPanel/Margin"]
+theme_override_colors/font_color = Color(0.714, 0.655, 0.514, 1)
+theme_override_font_sizes/font_size = 11
+text = "OBJETIVOS\n\n— Nenhum objetivo ativo.\n\nREGISTRO\nAcompanhe acontecimentos importantes."
+
+[node name="ActionLogPanel" type="PanelContainer" parent="CombatHUD"]
+offset_left = 18.0
+offset_top = 540.0
+offset_right = 430.0
+offset_bottom = 710.0
+theme_override_styles/panel = SubResource("StyleSoftPanel")
+
+[node name="Margin" type="MarginContainer" parent="CombatHUD/ActionLogPanel"]
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="VBox" type="VBoxContainer" parent="CombatHUD/ActionLogPanel/Margin"]
+
+[node name="Title" type="Label" parent="CombatHUD/ActionLogPanel/Margin/VBox"]
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+theme_override_font_sizes/font_size = 11
+text = "REGISTRO DE AÇÕES"
+
+[node name="ActionLog" type="Label" parent="CombatHUD/ActionLogPanel/Margin/VBox"]
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.714, 0.655, 0.514, 1)
+theme_override_font_sizes/font_size = 10
 autowrap_mode = 2
-text = "REGISTRO DE AÇÕES\nNenhuma ação registrada."
+text = "Nenhuma ação registrada."
+
+[node name="Hotbar" type="PanelContainer" parent="CombatHUD"]
+offset_left = 450.0
+offset_top = 646.0
+offset_right = 1010.0
+offset_bottom = 710.0
+theme_override_styles/panel = SubResource("StyleSoftPanel")
+
+[node name="Margin" type="MarginContainer" parent="CombatHUD/Hotbar"]
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 7
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 7
+
+[node name="Slots" type="HBoxContainer" parent="CombatHUD/Hotbar/Margin"]
+theme_override_constants/separation = 5
+
+[node name="Slot1" type="Button" parent="CombatHUD/Hotbar/Margin/Slots"]
+custom_minimum_size = Vector2(48, 48)
+theme_override_styles/normal = SubResource("StyleSlot")
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+text = "1\n—"
+flat = true
+
+[node name="Slot2" type="Button" parent="CombatHUD/Hotbar/Margin/Slots"]
+custom_minimum_size = Vector2(48, 48)
+theme_override_styles/normal = SubResource("StyleSlot")
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+text = "2\n—"
+flat = true
+
+[node name="Slot3" type="Button" parent="CombatHUD/Hotbar/Margin/Slots"]
+custom_minimum_size = Vector2(48, 48)
+theme_override_styles/normal = SubResource("StyleSlot")
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+text = "3\n—"
+flat = true
+
+[node name="Slot4" type="Button" parent="CombatHUD/Hotbar/Margin/Slots"]
+custom_minimum_size = Vector2(48, 48)
+theme_override_styles/normal = SubResource("StyleSlot")
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+text = "4\n—"
+flat = true
+
+[node name="Slot5" type="Button" parent="CombatHUD/Hotbar/Margin/Slots"]
+custom_minimum_size = Vector2(48, 48)
+theme_override_styles/normal = SubResource("StyleSlot")
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+text = "5\n—"
+flat = true
+
+[node name="Slot6" type="Button" parent="CombatHUD/Hotbar/Margin/Slots"]
+custom_minimum_size = Vector2(48, 48)
+theme_override_styles/normal = SubResource("StyleSlot")
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+text = "6\n—"
+flat = true
+
+[node name="Slot7" type="Button" parent="CombatHUD/Hotbar/Margin/Slots"]
+custom_minimum_size = Vector2(48, 48)
+theme_override_styles/normal = SubResource("StyleSlot")
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+text = "7\n—"
+flat = true
+
+[node name="Slot8" type="Button" parent="CombatHUD/Hotbar/Margin/Slots"]
+custom_minimum_size = Vector2(48, 48)
+theme_override_styles/normal = SubResource("StyleSlot")
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+text = "8\n—"
+flat = true
+
+[node name="Slot9" type="Button" parent="CombatHUD/Hotbar/Margin/Slots"]
+custom_minimum_size = Vector2(48, 48)
+theme_override_styles/normal = SubResource("StyleSlot")
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+text = "9\n—"
+flat = true
+
+[node name="Slot10" type="Button" parent="CombatHUD/Hotbar/Margin/Slots"]
+custom_minimum_size = Vector2(48, 48)
+theme_override_styles/normal = SubResource("StyleSlot")
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+text = "0\n—"
+flat = true
+
+[node name="MenuPanel" type="PanelContainer" parent="CombatHUD"]
+offset_left = 1040.0
+offset_top = 540.0
+offset_right = 1262.0
+offset_bottom = 710.0
+theme_override_styles/panel = SubResource("StyleSoftPanel")
+
+[node name="Margin" type="MarginContainer" parent="CombatHUD/MenuPanel"]
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="Label" type="Label" parent="CombatHUD/MenuPanel/Margin"]
+theme_override_colors/font_color = Color(0.714, 0.655, 0.514, 1)
+theme_override_font_sizes/font_size = 11
+text = "INVENTÁRIO\nPERSONAGEM\nMAPA\nMISSÕES\nDIÁRIO\nOPÇÕES"
 
 [node name="DebugOverlay" type="CanvasLayer" parent="."]
+visible = false
 
 [node name="Label" type="Label" parent="DebugOverlay"]
 offset_left = 24.0
