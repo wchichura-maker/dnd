@@ -14,6 +14,13 @@ func set_alive(value: bool) -> void:
 	can_receive_movement_input = value
 	if not value:
 		is_moving = false
+		var view := get_node_or_null("EntityView") as EntityView
+		if view != null and view.animation_controller != null:
+			view.animation_controller.play_state(CharacterAnimationState.State.DEATH, false)
+	else:
+		var alive_view := get_node_or_null("EntityView") as EntityView
+		if alive_view != null and alive_view.animation_controller != null:
+			alive_view.animation_controller.clear_death_lock()
 
 func move_along_path(path: Array[Vector2i], step_duration: float) -> void:
 	if path.is_empty() or is_moving or not can_receive_movement_input:
