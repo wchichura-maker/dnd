@@ -13,6 +13,17 @@ var selected_target_id: String = ""
 var latest_state: Dictionary = {}
 var latest_action_log: Array = []
 var death_screen_shown: bool = false
+var initiative_panel: PanelContainer
+var initiative_label: Label
+
+const PAPER_LIGHT := Color("e1d5b8")
+const PAPER_BURNED := Color("d6c9a8")
+const PAPER_SHADOW := Color("b5a383")
+const WOOD_DARK := Color("30261e")
+const GOLD := Color("b08a4d")
+const SUCCESS := Color("65704d")
+const FAILURE := Color("93483d")
+const MAGIC := Color("526878")
 
 func _ready() -> void:
 	adapter = GameEntityAdapter.new()
@@ -31,11 +42,54 @@ func _ready() -> void:
 	$CombatHUD/Panel/Margin/VBox/EndTurn.pressed.connect(_on_end_turn)
 	$DeathOverlay/Center/VBox/Spectator.pressed.connect(_on_spectator)
 	$DeathOverlay/Center/VBox/NewCharacter.pressed.connect(_on_new_character)
+	_setup_initiative_panel()
+	_setup_hotbar()
 	$DeathOverlay.visible = false
-	_set_debug_status("Game Core: conectando...\nClique esquerdo: mover / selecionar alvo\nClique direito: selecionar alvo")
+	_set_debug_status("Game Core: conectando...")
 	game_core.request_state()
 
+func _setup_initiative_panel() -> void:
+	initiative_panel = PanelContainer.new()
+	initiative_panel.name = "InitiativePanel"
+	initiative_panel.position = Vector2(450, 18)
+	initiative_panel.size = Vector2(560, 54)
+	initiative_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(WOOD_DARK, 0.72)
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.border_color = Color(GOLD, 0.45)
+	initiative_panel.add_theme_stylebox_override("panel", style)
+	$CombatHUD.add_child(initiative_panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_top", 7)
+	margin.add_theme_constant_override("margin_bottom", 7)
+	initiative_panel.add_child(margin)
+	initiative_label = Label.new()
+	initiative_label.add_theme_color_override("font_color", PAPER_LIGHT)
+	initiative_label.add_theme_font_size_override("font_size", 12)
+	initiative_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	initiative_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	initiative_label.text = "INICIATIVA  •  —"
+	margin.add_child(initiative_label)
+
+func _setup_hotbar() -> void:
+	var slots := $CombatHUD/Hotbar/Margin/Slots
+	for child in slots.get_children():
+		if child is Button:
+			(child as Button).focus_mode = Control.FOCUS_NONE
+
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
+		var key := (event as InputEventKey).keycode
+		match key:
+			KEY_1: _on_attack()
+			KEY_2: _on_coup_de_grace()
+			KEY_0: _on_end_turn()
 	if event is InputEventMouseButton:
 		var mouse_event := event as InputEventMouseButton
 		if mouse_event.button_index == MOUSE_BUTTON_RIGHT and mouse_event.pressed:
@@ -174,12 +228,62 @@ func _update_combat_hud(state: Dictionary, snapshot: Dictionary) -> void:
 	var movement_budget := int(presentation.get("movementBudget", 0))
 	var hp := int(player_entity.get("hp", 0))
 	var max_hp := int(player_entity.get("maxHp", 0))
-	$CombatHUD/Panel/Margin/VBox/Status.text = "Modo: %s\nTurno: %s\nKael: HP %d/%d  Movimento %d" % [mode, active_name if not active_name.is_empty() else "—", hp, max_hp, movement_budget]
+	$CombatHUD/Panel/Margin/VBox/Header.text = "COMBATE" if mode == "COMBAT" else ("ENCONTRO" if mode == "ENCOUNTER" else "EXPLORAÇÃO")
+	$CombatHUD/Panel/Margin/VBox/Status.text = "Turno: %s\nKael  HP %d/%d  Movimento %d" % [active_name if not active_name.is_empty() else "—", hp, max_hp, movement_budget]
+	$CombatHUD/Panel/Margin/VBox/EndTurn.disabled = mode == "EXPLORATION" or active_id != PLAYER_ID
 	_update_attack_button()
 	_update_coup_de_grace_button()
-	$CombatHUD/Panel/Margin/VBox/EndTurn.disabled = mode == "EXPLORATION" or active_id != PLAYER_ID
 	_update_target_label()
+	_update_party_panel(state, active_id)
+	_update_initiative_panel(combat, state, mode)
+	_update_hotbar(mode, active_id)
 	_update_action_log()
+
+func _update_party_panel(state: Dictionary, active_id: String) -> void:
+	var label: Label = $CombatHUD/PartyPanel/Margin/Label
+	var lines: Array[String] = ["GRUPO"]
+	for entity_variant in state.get("entities", []) as Array:
+		if not entity_variant is Dictionary: continue
+		var entity := entity_variant as Dictionary
+		if str(entity.get("type", "NPC")) != "PLAYER": continue
+		var entity_id := str(entity.get("id", ""))
+		var name := str(entity.get("name", entity_id))
+		var hp := int(entity.get("hp", 0))
+		var max_hp := int(entity.get("maxHp", 0))
+		var marker := "ATIVO" if entity_id == active_id else ""
+		lines.append("%s   %d/%d   %s" % [name, hp, max_hp, marker])
+	if lines.size() == 1: lines.append("Nenhum membro visível.")
+	label.text = "\n".join(lines)
+
+func _update_initiative_panel(combat: Dictionary, state: Dictionary, mode: String) -> void:
+	if initiative_panel == null: return
+	initiative_panel.visible = mode == "INITIATIVE" or mode == "COMBAT"
+	if not initiative_panel.visible: return
+	var order := combat.get("turnOrder", []) as Array
+	var current_index := int(combat.get("currentTurnIndex", 0))
+	var parts: Array[String] = []
+	for index in range(order.size()):
+		var id := str(order[index])
+		var name := id
+		for entity_variant in state.get("entities", []) as Array:
+			if entity_variant is Dictionary and str((entity_variant as Dictionary).get("id", "")) == id:
+				name = str((entity_variant as Dictionary).get("name", id))
+				break
+			parts.append(("> " if index == current_index else "") + name)
+	initiative_label.text = "INICIATIVA  •  " + "  |  ".join(parts)
+
+func _update_hotbar(mode: String, active_id: String) -> void:
+	var slots := $CombatHUD/Hotbar/Margin/Slots
+	var can_act := mode == "COMBAT" and active_id == PLAYER_ID
+	var attack_slot: Button = slots.get_node("Slot1")
+	var coup_slot: Button = slots.get_node("Slot2")
+	var end_slot: Button = slots.get_node("Slot10")
+	attack_slot.text = "1\nATAQUE"
+	coup_slot.text = "2\nCOUP"
+	end_slot.text = "0\nFIM"
+	attack_slot.disabled = not can_act or selected_target_id.is_empty()
+	coup_slot.disabled = not can_act or not _is_selected_target_helpless()
+	end_slot.disabled = not can_act
 
 func _update_attack_button() -> void:
 	var combat := latest_state.get("combat", {}) as Dictionary
@@ -191,7 +295,7 @@ func _update_attack_button() -> void:
 func _update_action_log() -> void:
 	var label: Label = $CombatHUD/ActionLogPanel/Margin/VBox/ActionLog
 	var lines: Array[String] = []
-	var start_index := maxi(0, latest_action_log.size() - 6)
+	var start_index := maxi(0, latest_action_log.size() - 5)
 	for index in range(start_index, latest_action_log.size()):
 		var entry_variant: Variant = latest_action_log[index]
 		if not entry_variant is Dictionary: continue
@@ -206,22 +310,20 @@ func _update_action_log() -> void:
 			var data := data_variant as Dictionary
 			if data.has("attack"):
 				var attack := data.get("attack", {}) as Dictionary
-				detail_lines.append("d20=%s + %s = %s | %s | dano=%s" % [str(attack.get("roll", "?")), str(attack.get("attackBonus", "?")), str(attack.get("total", "?")), "CRÍTICO" if bool(attack.get("critical", false)) else ("ACERTO" if bool(attack.get("hit", false)) else "ERRO"), str(attack.get("damage", 0))])
+				detail_lines.append("d20 %s + %s = %s | %s | D %s" % [str(attack.get("roll", "?")), str(attack.get("attackBonus", "?")), str(attack.get("total", "?")), "CRÍTICO" if bool(attack.get("critical", false)) else ("ACERTO" if bool(attack.get("hit", false)) else "ERRO"), str(attack.get("damage", 0))])
 			if data.has("opportunityAttacks") and data.get("opportunityAttacks") is Array:
 				for a_variant in data.get("opportunityAttacks", []) as Array:
 					if a_variant is Dictionary:
 						var a := a_variant as Dictionary
-						detail_lines.append("AO d20=%s + %s = %s | %s | dano=%s | HP %s→%s" % [str(a.get("roll", "?")), str(a.get("attackBonus", "?")), str(a.get("total", "?")), "CRÍTICO" if bool(a.get("critical", false)) else ("ACERTO" if bool(a.get("hit", false)) else "ERRO"), str(a.get("damage", 0)), str(a.get("hpBefore", "?")), str(a.get("hpAfter", "?"))])
-			if data.has("fortitudeRoll"):
-				detail_lines.append("Fortitude d20=%s" % str(data.get("fortitudeRoll", "?")))
+						detail_lines.append("AO d20 %s + %s = %s | D %s" % [str(a.get("roll", "?")), str(a.get("attackBonus", "?")), str(a.get("total", "?")), str(a.get("damage", 0))])
+			if data.has("fortitudeRoll"): detail_lines.append("Fortitude d20 %s" % str(data.get("fortitudeRoll", "?")))
 		var log_messages_variant: Variant = entry.get("logMessages", [])
 		if log_messages_variant is Array:
 			for log_message in log_messages_variant as Array:
 				var text := str(log_message)
-				if text.contains("teste de estabilização") or text.contains("ESTABILIZADO") or text.contains("falhou"):
-					detail_lines.append(text)
-		lines.append("[%s] %s %s\n%s%s" % ["OK" if success else "ERRO", source, action_type, message, ("\n" + "\n".join(detail_lines)) if not detail_lines.is_empty() else ""])
-	label.text = "REGISTRO DE AÇÕES\n" + ("\n".join(lines) if not lines.is_empty() else "Nenhuma ação registrada.")
+				if text.contains("teste de estabilização") or text.contains("ESTABILIZADO") or text.contains("falhou"): detail_lines.append(text)
+		lines.append("%s %s\n%s%s" % ["OK" if success else "ERRO", action_type, message, ("\n" + "\n".join(detail_lines)) if not detail_lines.is_empty() else ""])
+	label.text = ("\n".join(lines) if not lines.is_empty() else "Nenhuma ação registrada.")
 
 func _is_selected_target_helpless() -> bool:
 	if selected_target_id.is_empty(): return false
