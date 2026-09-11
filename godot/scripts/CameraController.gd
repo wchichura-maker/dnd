@@ -7,7 +7,7 @@ class_name CameraController
 
 const PAN_SPEED_CELLS: float = 8.0
 const FOCUS_DURATION: float = 0.24
-const GRID_CELL_PIXELS: float = VisualScale.GRID_CELL_PIXELS
+const GRID_CELL_PIXELS: float = 48.0
 
 var follow_target: Node2D
 var free_mode: bool = false
@@ -57,7 +57,7 @@ func focus_player() -> void:
 	tween.set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "global_position", follow_target.global_position, FOCUS_DURATION)
 
-tfunc _apply_limits() -> void:
+func _apply_limits() -> void:
 	limit_left = 0
 	limit_top = 0
 	limit_right = int(map_size.x * GRID_CELL_PIXELS)
