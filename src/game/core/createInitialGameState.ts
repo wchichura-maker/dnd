@@ -6,9 +6,11 @@ import { orc } from "../Combat";
 import { createTurn } from "../Turn";
 
 export function createInitialGameState(): GameState {
+  // Prototype exploration area: 120 x 80 squares.
+  // One square remains 5 ft; the logical grid is unchanged.
   const map = createMap(
-    26,
-    16
+    120,
+    80
   );
 
   const blockedTiles = [
