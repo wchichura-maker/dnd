@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 
 import { GameEngineEncounterActions } from "../core/GameEngineEncounterActions";
 import { createInitialGameState } from "../core/createInitialGameState";
-import { chooseAction } from "../AI";
+import { runAiTurns as executeAiTurns } from "./AITurnController";
 import { findPath, getReachablePositions } from "../rules/Pathfinding";
 import type { GameAction } from "../actions/Action";
 import type { ActionResult } from "../actions/ActionResult";
@@ -57,7 +57,6 @@ function recordAction(action: GameAction, result: ActionResult, before: ReturnTy
   const actorBefore = before.entities.find(entity => entity.id === action.actorId);
   const actorAfter = after.entities.find(entity => entity.id === action.actorId);
   const logMessages = after.logs.slice(before.logs.length);
-
   appendActionLog({
     source,
     type: action.type,
@@ -101,7 +100,6 @@ function processAutomaticCombatStart(): Array<object> {
   const events: Array<object> = [];
   const before = engine.getState();
   const result = engine.ensureAutomaticCombat();
-
   if (result) {
     appendActionLog({
       source: "SYSTEM",
@@ -113,30 +111,43 @@ function processAutomaticCombatStart(): Array<object> {
       turnAfter: getTurnDebug()
     });
   }
-
   if (result?.success) events.push({ type: "AUTO_COMBAT_START", result });
   return events;
 }
 
 function runAiTurns(): Array<object> {
-  const aiActions: Array<object> = [];
-  let guard = 0;
-  while (engine.isCombatMode() && guard < 20) {
-    const state = engine.getState();
-    const active = engine.getActiveEntity();
-    if (!active || active.controller !== "AI") break;
-    const action = chooseAction(active, state.entities, state.relationships, state.map) as GameAction;
-    const movementPath = action.destination ? findPath(state.map, state.entities, active.position, action.destination, active.id)?.path ?? [] : [];
-    const result = engine.executeAction(action);
-    recordAction(action, result, state, movementPath, "AI");
-    aiActions.push({ action, result, movementPath });
-    if (!result.success) break;
-    const endResult = engine.endTurn();
-    appendActionLog({ source: "AI", type: "END_TURN", actorId: active.id, success: endResult.success, message: endResult.message, data: endResult.data ?? null, logMessages: engine.getState().logs.slice(state.logs.length), turnAfter: getTurnDebug() });
-    if (!endResult.success) break;
-    guard++;
+  const run = executeAiTurns(engine);
+  for (const event of run.events) {
+    const before = engine.getState();
+    const actionState = event.action.actorId === getActiveId(before) ? before : before;
+    recordAction(event.action, event.result, actionState, event.movementPath, "AI");
+    if (event.endTurn) {
+      appendActionLog({
+        source: "AI",
+        type: "END_TURN",
+        actorId: event.action.actorId,
+        success: event.endTurn.success,
+        message: event.endTurn.message,
+        data: event.endTurn.data ?? null,
+        turnAfter: getTurnDebug()
+      });
+    }
   }
-  return aiActions;
+  if (run.stoppedByGuard) {
+    appendActionLog({
+      source: "SYSTEM",
+      type: "AI_TURN_GUARD",
+      actorId: null,
+      success: false,
+      message: "Ciclo de turnos AI interrompido pelo limite de segurança."
+    });
+  }
+  return run.events.map(event => ({
+    action: event.action,
+    result: event.result,
+    movementPath: event.movementPath,
+    endTurn: event.endTurn ?? null
+  }));
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
