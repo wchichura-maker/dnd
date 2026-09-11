@@ -54,8 +54,9 @@ func _ready() -> void:
 	_value_label.position = Vector2.ZERO
 	_value_label.size = size
 	_value_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_value_label.z_as_relative = true
-	_value_label.z_index = 2
+	# Absolute z guarantees the HP number is drawn above the red fill.
+	_value_label.z_as_relative = false
+	_value_label.z_index = 201
 	_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_value_label.add_theme_font_size_override("font_size", 7)
