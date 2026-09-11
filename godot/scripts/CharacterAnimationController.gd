@@ -82,11 +82,24 @@ func _animation_name(state: int) -> String:
 func _build_state_animations(state: int) -> void:
 	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
+	var frames: SpriteFrames = animated_sprite.sprite_frames
+	var state_name: String = CharacterAnimationState.State.keys()[state]
+
+	# Manually configured SpriteFrames are authoritative for presentation.
+	# Once all eight directional animations exist, preserve them exactly as
+	# authored in the scene instead of rebuilding/removing their frames.
+	var all_directions_present := true
+	for row in range(DIRECTION_COUNT):
+		var animation_name: String = "%s_%s" % [state_name, direction_names[row]]
+		if not frames.has_animation(animation_name) or frames.get_frame_count(animation_name) == 0:
+			all_directions_present = false
+			break
+	if all_directions_present:
+		return
+
 	var sheet: Texture2D = AssetRegistry.animation_sheet(state, entity_type)
 	if sheet == null:
 		return
-	var frames: SpriteFrames = animated_sprite.sprite_frames
-	var state_name: String = CharacterAnimationState.State.keys()[state]
 	var fps: float = INTERACT_FPS if state == CharacterAnimationState.State.INTERACT else IDLE_FPS
 	var frame_width: float = float(sheet.get_width()) / float(SHEET_COLUMNS)
 	var frame_height: float = float(sheet.get_height()) / float(SHEET_ROWS)
