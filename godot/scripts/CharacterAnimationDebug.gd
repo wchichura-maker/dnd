@@ -68,6 +68,13 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_action_resolved(action_result: Dictionary, snapshot: Dictionary) -> void:
 	if not bool(action_result.get("success", false)):
 		return
+
+	# AI turns are returned in the same response as the player's action.
+	# Inspect those authoritative action results directly so an enemy miss
+	# against the player produces BLOCK even though the client did not request
+	# the enemy action itself.
+	_play_block_from_ai_actions(snapshot)
+
 	var action := connected_game_core.last_requested_action if connected_game_core != null else {}
 	var action_actor_id := str(action.get("actorId", ""))
 
@@ -78,20 +85,42 @@ func _on_action_resolved(action_result: Dictionary, snapshot: Dictionary) -> voi
 			return
 		if str(action.get("type", "")) in ["ATTACK", "COUP_DE_GRACE"]:
 			player_view.animation_controller.play_state(CharacterAnimationState.State.ATTACK, false)
+
+func _play_block_from_ai_actions(snapshot: Dictionary) -> void:
+	var ai_actions_variant: Variant = snapshot.get("aiActions", [])
+	if not ai_actions_variant is Array:
 		return
 
-	# Enemy attack results may contain an attack roll. A miss against the player
-	# is presented as BLOCK; a hit is handled by the HP transition below.
-	var data_variant: Variant = action_result.get("data", {})
-	if data_variant is Dictionary:
+	var player_view := _get_player_view()
+	if player_view == null or player_view.animation_controller == null:
+		return
+
+	for event_variant in ai_actions_variant as Array:
+		if not event_variant is Dictionary:
+			continue
+		var event := event_variant as Dictionary
+		var action_variant: Variant = event.get("action", {})
+		var result_variant: Variant = event.get("result", {})
+		if not action_variant is Dictionary or not result_variant is Dictionary:
+			continue
+		var action := action_variant as Dictionary
+		var result := result_variant as Dictionary
+		if str(action.get("type", "")) != "ATTACK":
+			continue
+		if str(action.get("targetId", "")) != "player-01":
+			continue
+
+		var data_variant: Variant = result.get("data", {})
+		if not data_variant is Dictionary:
+			continue
 		var data := data_variant as Dictionary
 		var attack_variant: Variant = data.get("attack", {})
-		if attack_variant is Dictionary:
-			var attack := attack_variant as Dictionary
-			if str(action.get("targetId", "")) == "player-01" and not bool(attack.get("hit", true)):
-				var view := _get_player_view()
-				if view != null and view.animation_controller != null:
-					view.animation_controller.play_state(CharacterAnimationState.State.BLOCK, false)
+		if not attack_variant is Dictionary:
+			continue
+		var attack := attack_variant as Dictionary
+		if not bool(attack.get("hit", true)):
+			player_view.animation_controller.play_state(CharacterAnimationState.State.BLOCK, false)
+			return
 
 func _on_state_received(snapshot: Dictionary) -> void:
 	var state_variant: Variant = snapshot.get("state", {})
