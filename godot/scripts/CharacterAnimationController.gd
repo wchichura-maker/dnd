@@ -60,7 +60,7 @@ func has_state_animation(state: int) -> bool:
 func _play_current_animation(loop: bool) -> void:
 	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
-	var animation_name := _animation_name(current_state)
+	var animation_name: String = _animation_name(current_state)
 	if not animated_sprite.sprite_frames.has_animation(animation_name):
 		return
 	animated_sprite.sprite_frames.set_animation_loop(animation_name, loop)
@@ -69,35 +69,36 @@ func _play_current_animation(loop: bool) -> void:
 func _on_animation_finished() -> void:
 	if current_state != CharacterAnimationState.State.INTERACT:
 		return
-	var return_state := previous_state
+	var return_state: int = previous_state
 	if return_state == CharacterAnimationState.State.INTERACT:
 		return_state = CharacterAnimationState.State.IDLE
 	current_state = return_state
 	_play_current_animation(true)
 
 func _animation_name(state: int) -> String:
-	return "%s_%s" % [CharacterAnimationState.State.keys()[state], direction_names[direction]]
+	var state_name: String = CharacterAnimationState.State.keys()[state]
+	return "%s_%s" % [state_name, direction_names[direction]]
 
 func _build_state_animations(state: int) -> void:
 	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
-	var sheet := AssetRegistry.animation_sheet(state, entity_type)
+	var sheet: Texture2D = AssetRegistry.animation_sheet(state, entity_type)
 	if sheet == null:
 		return
-	var frames := animated_sprite.sprite_frames
-	var state_name := CharacterAnimationState.State.keys()[state]
-	var fps := INTERACT_FPS if state == CharacterAnimationState.State.INTERACT else IDLE_FPS
-	var frame_width := float(sheet.get_width()) / float(SHEET_COLUMNS)
-	var frame_height := float(sheet.get_height()) / float(SHEET_ROWS)
+	var frames: SpriteFrames = animated_sprite.sprite_frames
+	var state_name: String = CharacterAnimationState.State.keys()[state]
+	var fps: float = INTERACT_FPS if state == CharacterAnimationState.State.INTERACT else IDLE_FPS
+	var frame_width: float = float(sheet.get_width()) / float(SHEET_COLUMNS)
+	var frame_height: float = float(sheet.get_height()) / float(SHEET_ROWS)
 	for row in range(DIRECTION_COUNT):
-		var animation_name := "%s_%s" % [state_name, direction_names[row]]
+		var animation_name: String = "%s_%s" % [state_name, direction_names[row]]
 		if frames.has_animation(animation_name):
 			frames.remove_animation(animation_name)
 		frames.add_animation(animation_name)
 		frames.set_animation_loop(animation_name, state != CharacterAnimationState.State.INTERACT)
 		frames.set_animation_speed(animation_name, fps)
 		for column in range(SHEET_COLUMNS):
-			var atlas := AtlasTexture.new()
+			var atlas: AtlasTexture = AtlasTexture.new()
 			atlas.atlas = sheet
 			atlas.region = Rect2(column * frame_width, row * frame_height, frame_width, frame_height)
 			frames.add_frame(animation_name, atlas)
