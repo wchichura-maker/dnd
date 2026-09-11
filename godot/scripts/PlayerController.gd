@@ -19,6 +19,7 @@ func move_along_path(path: Array[Vector2i], step_duration: float) -> void:
 	tween.set_ease(Tween.EASE_IN_OUT)
 
 	for tile in path:
+		grid_position = tile
 		var world_position: Vector2 = Vector2(tile) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
 		tween.tween_property(self, "position", world_position, step_duration)
 
