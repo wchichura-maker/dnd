@@ -16,13 +16,10 @@ var character_sprite: AnimatedSprite2D
 var animation_controller: CharacterAnimationController
 
 const RADIUS: float = 14.0
-const BAR_WIDTH: float = 42.0
-const BAR_HEIGHT: float = 5.0
 const PAPER_BURNED := Color("d6c9a8")
 const WOOD_DARK := Color("30261e")
 const LEATHER := Color("70553d")
 const GOLD := Color("b08a4d")
-const SUCCESS := Color("65704d")
 const FAILURE := Color("93483d")
 
 func _ready() -> void:
@@ -73,7 +70,6 @@ func _ensure_character_sprite() -> void:
 func _draw() -> void:
 	var has_character_art: bool = character_sprite != null and character_sprite.visible
 	var is_dead := hp <= -10
-	var is_dying := hp < 0 and not is_dead
 
 	# Legacy placeholder is only used when no authored character art is available.
 	if not has_character_art:
@@ -85,13 +81,6 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO, 20.0, Color(WOOD_DARK, 0.92), false, 2.0)
 		draw_arc(Vector2.ZERO, 20.0, 0.0, TAU, 32, ring_color, 2.5 if selected else 1.5)
 
-	# Keep gameplay metadata visible without drawing the old body behind the sprite.
-	var hp_ratio: float = 0.0
-	if max_hp > 0:
-		hp_ratio = clampf(float(hp) / float(max_hp), 0.0, 1.0)
-	var bar_origin := Vector2(-BAR_WIDTH * 0.5, -31.0)
-	draw_rect(Rect2(bar_origin, Vector2(BAR_WIDTH, BAR_HEIGHT)), Color(WOOD_DARK, 0.95))
-	draw_rect(Rect2(bar_origin, Vector2(BAR_WIDTH * hp_ratio, BAR_HEIGHT)), SUCCESS if not is_dying and not is_dead else FAILURE)
-
+	# HP is presented exclusively by PartyHUD; no overhead health bar is drawn here.
 	if entity_name != "":
 		draw_string(ThemeDB.fallback_font, Vector2(-40, 34), entity_name, HORIZONTAL_ALIGNMENT_CENTER, 80, 12, PAPER_BURNED)
