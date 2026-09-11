@@ -68,7 +68,7 @@ func _draw_candidate(center: Vector2, height_cells: float) -> void:
 	draw_rect(Rect2(center.x + 2.0, leg_top, leg_width, feet.y - leg_top), LEATHER)
 
 	# Soft directional ground shadow: upper-left light, shadow cast down-right.
-	draw_ellipse(feet + Vector2(8.0, 4.0), Vector2(CELL * 0.25, CELL * 0.08), Color(WOOD_DARK, 0.42))
+	_draw_ellipse(feet + Vector2(8.0, 4.0), Vector2(CELL * 0.25, CELL * 0.08), Color(WOOD_DARK, 0.42))
 
 	var is_target := is_equal_approx(height_cells, 1.40)
 	var line_color := GOLD if is_target else PAPER_SHADOW
@@ -94,7 +94,7 @@ func _draw_size_examples(origin: Vector2) -> void:
 func _draw_text(position: Vector2, text: String, size: int, color: Color) -> void:
 	draw_string(ThemeDB.fallback_font, position, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
-func draw_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
+func _draw_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
 	var points := PackedVector2Array()
 	for index in range(25):
 		var angle := TAU * float(index) / 24.0
