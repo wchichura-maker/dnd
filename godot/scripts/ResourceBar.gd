@@ -5,13 +5,14 @@ class_name ResourceBar
 @export var fill_color: Color = Color("a14a3d")
 @export var low_fill_color: Color = Color("8a3a33")
 @export var critical_fill_color: Color = Color("6d2f2b")
-@export var animate_changes: bool = true
+@export var animate_changes: bool = false
 @export var animation_duration: float = 0.18
 
 var current: float = 0.0
 var maximum: float = 0.0
 var displayed_ratio: float = 0.0
 var _tween: Tween
+var _background: ColorRect
 var _fill: ColorRect
 var _value_label: Label
 
@@ -21,12 +22,22 @@ func _ready() -> void:
 	z_as_relative = true
 	z_index = 100
 
+	_background = ColorRect.new()
+	_background.name = "Background"
+	_background.position = Vector2.ZERO
+	_background.size = size
+	_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_background.z_index = 0
+	_background.color = Color("201914")
+	_background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(_background)
+
 	_fill = ColorRect.new()
 	_fill.name = "Fill"
 	_fill.position = Vector2.ZERO
 	_fill.size = size
 	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_fill.z_index = 0
+	_fill.z_index = 1
 	_fill.color = fill_color
 	_fill.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(_fill)
@@ -53,18 +64,23 @@ func set_value(new_current: float, new_maximum: float) -> void:
 	maximum = maxf(0.0, new_maximum)
 	var target := clampf(current / maximum, 0.0, 1.0) if maximum > 0.0 else 0.0
 	_update_label()
+
+	if _tween != null and _tween.is_valid():
+		_tween.kill()
+
 	if not is_node_ready() or not animate_changes:
 		displayed_ratio = target
 		_apply_fill(displayed_ratio)
 		return
-	if _tween != null and _tween.is_valid():
-		_tween.kill()
+
 	_tween = create_tween()
 	_tween.set_trans(Tween.TRANS_QUAD)
 	_tween.set_ease(Tween.EASE_OUT)
 	_tween.tween_property(self, "displayed_ratio", target, animation_duration)
 
 func _process(_delta: float) -> void:
+	if _background != null:
+		_background.size = size
 	_apply_fill(displayed_ratio)
 
 func _update_label() -> void:
