@@ -44,6 +44,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			scene_root.call("_on_end_turn")
 		get_viewport().set_input_as_handled()
 		return
+	if key_event.keycode == KEY_F:
+		if game_core != null and game_core.has_method("eat_food"):
+			game_core.eat_food()
+		get_viewport().set_input_as_handled()
+		return
+	if key_event.keycode == KEY_D:
+		if game_core != null and game_core.has_method("advance_world_time"):
+			game_core.advance_world_time(24 * 60 * 60)
+		get_viewport().set_input_as_handled()
+		return
 
 func _connect_game_core() -> void:
 	var scene_root := get_tree().current_scene
