@@ -34,6 +34,7 @@ func _unhandled_input(event: InputEvent) -> void:
 						target_id = str(entity.get("id", ""))
 						break
 			if not target_id.is_empty():
+				scene_root.set("selected_target_id", target_id)
 				scene_root.call("_on_attack")
 		get_viewport().set_input_as_handled()
 		return
