@@ -2,6 +2,7 @@ extends CanvasLayer
 class_name PartyHUD
 
 const PLAYER_ID := "player-01"
+const WORLD_TIME_ADVANCE_SECONDS := 24 * 60 * 60
 
 var portrait: PartyPortrait
 var game_core: Node
@@ -58,6 +59,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key_event.keycode == KEY_F:
 		if game_core != null and game_core.has_method("eat_food"):
 			game_core.eat_food()
+		get_viewport().set_input_as_handled()
+		return
+	if key_event.keycode == KEY_H:
+		if game_core != null and game_core.has_method("advance_world_time"):
+			game_core.advance_world_time(WORLD_TIME_ADVANCE_SECONDS)
 		get_viewport().set_input_as_handled()
 		return
 
