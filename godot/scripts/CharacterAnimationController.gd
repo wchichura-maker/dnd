@@ -78,6 +78,11 @@ func _play_current_animation(loop_override: Variant = null) -> void:
 		animated_sprite.play(animation_name)
 
 func _on_animation_finished() -> void:
+	# Death is terminal for the current character. Keep the final DEATH frame
+	# visible instead of returning to the previous state (normally IDLE).
+	if current_state == CharacterAnimationState.State.DEATH:
+		animated_sprite.stop()
+		return
 	if current_state == CharacterAnimationState.State.WALK or current_state == CharacterAnimationState.State.IDLE:
 		return
 	var return_state := previous_state
