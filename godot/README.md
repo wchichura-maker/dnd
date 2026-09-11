@@ -18,6 +18,52 @@ The current vertical slice proves the client/runtime foundation and the first au
 - TypeScript `GameCoreServer` exposing state and actions.
 - Authoritative `GameEngine` movement/pathfinding.
 - Godot tile-by-tile animation based on the path returned by Game Core.
+- Standalone visual scale calibration scene, independent of the temporary asset pack.
+
+## Visual scale calibration
+
+The current target is **provisional** until visual review in Godot:
+
+```text
+D&D ONLINE — CHARACTER SCALE
+
+Grid:
+1 cell = 5 ft
+
+Base visual scale:
+1 cell = 64 × 64 px
+
+Medium:
+footprint = 1 × 1 cell
+visual height ≈ 1.40 cells
+visual width ≈ 0.45–0.55 cell
+
+Small:
+footprint = 1 × 1 cell
+visual height ≈ 1.10–1.25 cells
+
+Large:
+footprint = 2 × 2 cells
+visual height ≈ 2.0–2.4 cells
+
+Huge:
+footprint = 3 × 3 cells
+visual height ≈ 2.8–3.5 cells
+
+Gargantuan:
+footprint = 4 × 4 cells
+visual height ≈ 3.8–4.8 cells
+```
+
+`VisualScale.gd` contains these presentation values. The Game Core continues to own logical grid distance and creature footprints.
+
+### Scale test
+
+Open `godot/scenes/ScaleTest.tscn` and run it with **F6**.
+
+The test deliberately uses abstract adult-proportion silhouettes instead of the current Claw & Blade characters. It compares 1.25, 1.35, **1.40**, 1.45 and 1.55 cell visual heights against a 64 px tactical cell, so the final proportion can be judged without the temporary pack biasing the decision.
+
+The 1.40-cell candidate is highlighted as the current target, not as a final locked value.
 
 ## Architecture rule
 
@@ -51,7 +97,6 @@ The Godot client requests the authoritative initial state and sends movement act
 
 These are not implemented in the Godot presentation layer yet:
 
-- Combat UI.
 - Inventory UI.
 - AI presentation.
 - Multiplayer session transport.
