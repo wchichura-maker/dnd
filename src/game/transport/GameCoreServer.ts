@@ -4,6 +4,7 @@ import { createInitialGameState } from "../core/createInitialGameState";
 import { runAiTurns as executeAiTurns } from "./AITurnController";
 import { findPath, getReachablePositions } from "../rules/Pathfinding";
 import { calculatePerception, pointsToKeys } from "../rules/PerceptionRules";
+import { isDead } from "../rules/ConditionRules";
 import type { GameAction } from "../actions/Action";
 import type { ActionResult } from "../actions/ActionResult";
 
@@ -71,6 +72,26 @@ function processAutomaticCombatStart(): Array<object> {
   return events;
 }
 
+function hasRemainingHostilePair(): boolean {
+  const state = engine.getState();
+  const living = state.entities.filter(entity => !isDead(entity));
+  for (let i = 0; i < living.length; i++) {
+    for (let j = i + 1; j < living.length; j++) {
+      const hostile = state.relationships.some(relationship =>
+        ((relationship.entityAId === living[i].id && relationship.entityBId === living[j].id) ||
+          (relationship.entityAId === living[j].id && relationship.entityBId === living[i].id)) && relationship.hostile
+      );
+      if (hostile) return true;
+    }
+  }
+  return false;
+}
+
+function normalizeCombatAfterAction(): ActionResult | null {
+  if (!engine.isCombatMode() || hasRemainingHostilePair()) return null;
+  return engine.resolveCombat("DEATH");
+}
+
 function runAiTurns(): Array<object> {
   const run = executeAiTurns(engine);
   return run.events.map(event => {
@@ -130,10 +151,14 @@ const server = createServer(async (request, response) => {
         }
       }
       const result = engine.executeAction(action);
-      recordAction(action, result, stateBeforeAction, movementPath, action.actorId === PLAYER_ID ? "PLAYER" : "SYSTEM");
+      const combatResolution = result.success ? normalizeCombatAfterAction() : null;
+      const finalResult: ActionResult = combatResolution?.success
+        ? { ...result, message: `${result.message} ${combatResolution.message}`, data: { ...(result.data ?? {}), combatEnded: true, combatEndReason: "DEATH" } }
+        : result;
+      recordAction(action, finalResult, stateBeforeAction, movementPath, action.actorId === PLAYER_ID ? "PLAYER" : "SYSTEM");
       const postActionAutomaticEvents = processAutomaticCombatStart();
-      const aiActions = result.success ? runAiTurns() : [];
-      return sendJson(response, result.success ? 200 : 400, { actionResult: result, autoCombatEvents: [...automaticEvents, ...postActionAutomaticEvents], aiActions, ...getSnapshot(), movementPath: result.success ? movementPath : [] });
+      const aiActions = finalResult.success ? runAiTurns() : [];
+      return sendJson(response, finalResult.success ? 200 : 400, { actionResult: finalResult, autoCombatEvents: [...automaticEvents, ...postActionAutomaticEvents], aiActions, ...getSnapshot(), movementPath: finalResult.success ? movementPath : [] });
     }
     return sendJson(response, 404, { success: false, message: "Endpoint não encontrado." });
   } catch (error) {
