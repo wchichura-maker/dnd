@@ -1,4 +1,4 @@
-import { chooseAction } from "../AI";
+import { chooseAction, MIN_ESCAPE_DISTANCE_SQUARES } from "../AI";
 import { playerCharacter } from "../Character";
 import { orc } from "../Combat";
 import { createMap } from "../Map";
@@ -71,6 +71,15 @@ export function runAITests(): void {
   assert(runAction.targetId === farLowHealthTarget.id, "Run mantém o alvo de referência");
   assert(!!runAction.destination, "Run possui destino");
 
+  const escapedTarget = { ...healthyPlayer, id: "escaped-target", position: { x: lowHealthActor.position.x + MIN_ESCAPE_DISTANCE_SQUARES, y: lowHealthActor.position.y } };
+  const fleeAction = chooseAction(lowHealthActor, [escapedTarget, lowHealthActor], hostileRelationship(lowHealthActor.id, escapedTarget.id), map);
+  assert(fleeAction.type === "FLEE", "IA encerra a fuga quando o limite mínimo de distância é atingido");
+  assert(!fleeAction.destination, "FLEE de rompimento de contato não exige novo deslocamento");
+
+  const belowEscapeTarget = { ...healthyPlayer, id: "below-escape-target", position: { x: lowHealthActor.position.x + MIN_ESCAPE_DISTANCE_SQUARES - 1, y: lowHealthActor.position.y } };
+  const continueFleeAction = chooseAction(lowHealthActor, [belowEscapeTarget, lowHealthActor], hostileRelationship(lowHealthActor.id, belowEscapeTarget.id), map);
+  assert(continueFleeAction.type === "RUN", "IA continua correndo enquanto estiver abaixo do limite de fuga");
+
   const deadActor = { ...orc, id: "dead-orc", hp: -10 };
   const deadActorAction = chooseAction(deadActor, [healthyPlayer, deadActor], [], map);
   assert(deadActorAction.type === "WAIT", "IA morta não produz ação");
@@ -82,6 +91,8 @@ export function runAITests(): void {
   console.log("✓ IA escolhe Investida tática");
   console.log("✓ IA escolhe Withdraw com pouca vida em combate próximo");
   console.log("✓ IA escolhe Run com pouca vida e espaço");
+  console.log("✓ IA encerra fuga após romper contato");
+  console.log("✓ IA continua fuga abaixo do limite");
   console.log("✓ IA morta não produz ação");
   console.log("✓ TESTES DE IA PASSARAM");
 }
