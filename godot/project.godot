@@ -16,6 +16,7 @@ stretch/mode="canvas_items"
 
 [autoload]
 FogOfWarRenderer="*res://scripts/FogOfWarRenderer.gd"
+CharacterAnimationDebug="*res://scripts/CharacterAnimationDebug.gd"
 
 [rendering]
 renderer/rendering_method="gl_compatibility"
