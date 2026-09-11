@@ -2,11 +2,17 @@ extends CanvasLayer
 class_name PartyHUD
 
 const PLAYER_ID := "player-01"
+const WORLD_TIME_TEST_KEY := KEY_F9
 
 var portrait: PartyPortrait
 var game_core: Node
 var latest_state: Dictionary = {}
 var selected_character_id: String = PLAYER_ID
+var last_synced_hp: float = INF
+var last_synced_food: float = INF
+var last_synced_max_hp: float = INF
+var last_synced_max_food: float = INF
+var last_synced_active_id: String = "__UNSET__"
 
 func _ready() -> void:
 	layer = 20
@@ -14,6 +20,23 @@ func _ready() -> void:
 	portrait.character_selected.connect(_on_character_selected)
 	portrait.set_selected(true)
 	call_deferred("_connect_game_core")
+
+func _process(_delta: float) -> void:
+	if game_core == null:
+		return
+	var cached_variant: Variant = game_core.get("latest_snapshot")
+	if not cached_variant is Dictionary:
+		return
+	var cached_snapshot := cached_variant as Dictionary
+	if cached_snapshot.is_empty():
+		return
+	var state_variant: Variant = cached_snapshot.get("state", {})
+	if not state_variant is Dictionary:
+		return
+	if cached_snapshot != _last_snapshot:
+		_on_state_received(cached_snapshot)
+
+var _last_snapshot: Dictionary = {}
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not event is InputEventKey:
@@ -49,7 +72,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			game_core.eat_food()
 		get_viewport().set_input_as_handled()
 		return
-	if key_event.keycode == KEY_D:
+	if key_event.keycode == WORLD_TIME_TEST_KEY:
 		if game_core != null and game_core.has_method("advance_world_time"):
 			game_core.advance_world_time(24 * 60 * 60)
 		get_viewport().set_input_as_handled()
@@ -74,6 +97,9 @@ func _on_state_received(snapshot: Dictionary) -> void:
 	var state_variant: Variant = snapshot.get("state", {})
 	if not state_variant is Dictionary:
 		return
+	if snapshot == _last_snapshot:
+		return
+	_last_snapshot = snapshot.duplicate(true)
 	latest_state = state_variant as Dictionary
 	_apply_player_data()
 
@@ -98,19 +124,28 @@ func _apply_player_data() -> void:
 	var current_index := int(combat.get("currentTurnIndex", 0))
 	var active_id := str(turn_order[current_index]) if current_index >= 0 and current_index < turn_order.size() else ""
 
-	var conditions_variant: Variant = player_entity.get("conditions", [])
-	var conditions: Array = conditions_variant as Array if conditions_variant is Array else []
+	var current_hp := float(player_entity.get("hp", 0))
+	var max_hp := float(player_entity.get("maxHp", 0))
+	var current_food := float(player_entity.get("food", 0))
+	var max_food := float(player_entity.get("maxFood", 0))
+	if is_equal_approx(current_hp, last_synced_hp) and is_equal_approx(max_hp, last_synced_max_hp) and is_equal_approx(current_food, last_synced_food) and is_equal_approx(max_food, last_synced_max_food) and active_id == last_synced_active_id:
+		return
 
+	last_synced_hp = current_hp
+	last_synced_max_hp = max_hp
+	last_synced_food = current_food
+	last_synced_max_food = max_food
+	last_synced_active_id = active_id
 	portrait.apply_data({
 		"characterId": PLAYER_ID,
 		"level": level,
-		"currentHP": float(player_entity.get("hp", 0)),
-		"maxHP": float(player_entity.get("maxHp", 0)),
-		"currentFood": float(player_entity.get("food", 0)),
-		"maxFood": float(player_entity.get("maxFood", 0)),
+		"currentHP": current_hp,
+		"maxHP": max_hp,
+		"currentFood": current_food,
+		"maxFood": max_food,
 		"selected": selected_character_id == PLAYER_ID,
 		"active": active_id == PLAYER_ID,
-		"conditions": conditions
+		"conditions": player_entity.get("conditions", [])
 	})
 
 func _on_character_selected(character_id: String) -> void:
