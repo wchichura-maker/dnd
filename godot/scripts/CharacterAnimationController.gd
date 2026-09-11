@@ -1,15 +1,15 @@
 extends Node
 
 ## Presentation-only animation controller.
-## It owns SpriteFrames and direction selection; it never changes gameplay state.
+## Gameplay systems refer to animation states and directions, never filenames.
 
 class_name CharacterAnimationController
 
-const FRAME_WIDTH: int = 64
-const FRAME_HEIGHT: int = 128
+const SHEET_COLUMNS: int = 6
+const SHEET_ROWS: int = 8
+const IDLE_FPS: float = 6.0
 const INTERACT_FPS: float = 8.0
-const INTERACT_FRAME_COUNT: int = 6
-const INTERACT_DIRECTION_COUNT: int = 8
+const DIRECTION_COUNT: int = 8
 
 var animated_sprite: AnimatedSprite2D
 var entity_type: String = "PLAYER"
@@ -28,18 +28,18 @@ func configure(sprite: AnimatedSprite2D) -> void:
 	animated_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if not animated_sprite.animation_finished.is_connected(_on_animation_finished):
 		animated_sprite.animation_finished.connect(_on_animation_finished)
-	_build_interact_animations()
+	_build_state_animations(CharacterAnimationState.State.IDLE)
+	_build_state_animations(CharacterAnimationState.State.INTERACT)
+	_play_current_animation(true)
 
 func set_entity_type(value: String) -> void:
-	if entity_type == value and _has_interact_animation():
-		return
 	entity_type = value
-	_build_interact_animations()
+	_build_state_animations(CharacterAnimationState.State.IDLE)
+	_build_state_animations(CharacterAnimationState.State.INTERACT)
 
 func set_direction(value: int) -> void:
-	direction = clampi(value, 0, INTERACT_DIRECTION_COUNT - 1)
-	if current_state == CharacterAnimationState.State.INTERACT:
-		_play_current_animation(false)
+	direction = clampi(value, 0, DIRECTION_COUNT - 1)
+	_play_current_animation(current_state != CharacterAnimationState.State.INTERACT)
 
 func set_state(value: int, loop := true) -> void:
 	if current_state != value:
@@ -73,33 +73,29 @@ func _on_animation_finished() -> void:
 	_play_current_animation(true)
 
 func _animation_name(state: int) -> String:
-	if state == CharacterAnimationState.State.INTERACT:
-		return "INTERACT_%s" % direction_names[direction]
-	return CharacterAnimationState.State.keys()[state]
+	return "%s_%s" % [CharacterAnimationState.State.keys()[state], direction_names[direction]]
 
-func _has_interact_animation() -> bool:
-	if animated_sprite == null or animated_sprite.sprite_frames == null:
-		return false
-	return animated_sprite.sprite_frames.has_animation("INTERACT_SOUTH")
-
-func _build_interact_animations() -> void:
+func _build_state_animations(state: int) -> void:
 	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
-	var frames := animated_sprite.sprite_frames
-	var sheet := AssetRegistry.animation_sheet(CharacterAnimationState.State.INTERACT, entity_type)
+	var sheet := AssetRegistry.animation_sheet(state, entity_type)
 	if sheet == null:
 		return
-	if _has_interact_animation():
-		return
-
-	for row in range(INTERACT_DIRECTION_COUNT):
-		var animation_name := "INTERACT_%s" % direction_names[row]
+	var frames := animated_sprite.sprite_frames
+	var state_name := CharacterAnimationState.State.keys()[state]
+	var fps := INTERACT_FPS if state == CharacterAnimationState.State.INTERACT else IDLE_FPS
+	for row in range(DIRECTION_COUNT):
+		var animation_name := "%s_%s" % [state_name, direction_names[row]]
+		if frames.has_animation(animation_name):
+			frames.remove_animation(animation_name)
 		frames.add_animation(animation_name)
-		frames.set_animation_loop(animation_name, false)
-		frames.set_animation_speed(animation_name, INTERACT_FPS)
+		frames.set_animation_loop(animation_name, state != CharacterAnimationState.State.INTERACT)
+		frames.set_animation_speed(animation_name, fps)
 
-		for column in range(INTERACT_FRAME_COUNT):
+		var frame_width := float(sheet.get_width()) / float(SHEET_COLUMNS)
+		var frame_height := float(sheet.get_height()) / float(SHEET_ROWS)
+		for column in range(SHEET_COLUMNS):
 			var atlas := AtlasTexture.new()
 			atlas.atlas = sheet
-			atlas.region = Rect2(column * FRAME_WIDTH, row * FRAME_HEIGHT, FRAME_WIDTH, FRAME_HEIGHT)
+			atlas.region = Rect2(column * frame_width, row * frame_height, frame_width, frame_height)
 			frames.add_frame(animation_name, atlas)
