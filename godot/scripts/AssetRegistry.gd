@@ -28,7 +28,9 @@ static func character_texture(entity_type: String) -> Texture2D:
 static func animation_sheet(state: int, entity_type: String) -> Texture2D:
 	if entity_type != "PLAYER":
 		return null
-	if state == CharacterAnimationState.State.INTERACT:
+	# The committed Human Fighter INTERACT sheet is the presentation fallback
+	# until the remaining state sheets are installed.
+	if state == CharacterAnimationState.State.INTERACT or state == CharacterAnimationState.State.IDLE:
 		return _load_texture(HUMAN_FIGHTER_INTERACT)
 	return null
 
