@@ -10,6 +10,13 @@ import type { Position } from "./world/Position";
 
 type TargetRelation = Relationship;
 
+/**
+ * Distância mínima para considerar que uma criatura conseguiu romper contato.
+ * 12 quadrados = 60 pés. D&D 3.5 não define uma distância fixa para isso;
+ * este é o limite de implementação do combate tático antes de migrar para uma perseguição.
+ */
+export const MIN_ESCAPE_DISTANCE_SQUARES = 12;
+
 function distance(from: Position, to: Position): number {
   return Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y));
 }
@@ -145,16 +152,14 @@ function chooseRetreatDestination(
  *
  * Prioridade:
  * 1. alvo hostil vivo;
- * 2. helpless ao alcance -> COUP_DE_GRACE;
- * 3. alvo ao alcance -> ATTACK;
- * 4. baixa vida em combate próximo -> WITHDRAW;
- * 5. baixa vida com espaço -> RUN;
- * 6. investida quando uma trajetória reta válida permite alcançar o alvo;
- * 7. aproximação normal;
- * 8. WAIT.
- *
- * A IA escolhe apenas a intenção. O Game Core continua responsável por
- * validar regras, recursos, AoO, dano e transições de estado.
+ * 2. se estiver em fuga e já rompeu contato -> FLEE;
+ * 3. helpless ao alcance -> COUP_DE_GRACE;
+ * 4. alvo ao alcance -> ATTACK;
+ * 5. baixa vida em combate próximo -> WITHDRAW;
+ * 6. baixa vida com espaço -> RUN;
+ * 7. investida quando uma trajetória reta válida permite alcançar o alvo;
+ * 8. aproximação normal;
+ * 9. WAIT.
  */
 export function chooseAction(
   actor: Combatant,
@@ -167,12 +172,16 @@ export function chooseAction(
   const target = selectTarget(actor, entities, relationships);
   if (!target) return { type: "WAIT" as const, actorId: actor.id };
 
+  const lowHealth = actor.hp > 0 && actor.hp / actor.maxHp <= 0.25;
+  if (lowHealth && distance(actor.position, target.position) >= MIN_ESCAPE_DISTANCE_SQUARES) {
+    return { type: "FLEE" as const, actorId: actor.id, targetId: target.id };
+  }
+
   if (isHelpless(target) && isWithinWeaponRange(actor, target)) {
     return { type: "COUP_DE_GRACE" as const, actorId: actor.id, targetId: target.id };
   }
 
   if (isWithinWeaponRange(actor, target)) {
-    const lowHealth = actor.hp > 0 && actor.hp / actor.maxHp <= 0.25;
     if (lowHealth && map) {
       const withdraw = chooseRetreatDestination(actor, target, entities, map, getWithdrawMovement(actor.movement), false);
       if (withdraw) return { type: "WITHDRAW" as const, actorId: actor.id, targetId: target.id, destination: withdraw };
@@ -183,7 +192,6 @@ export function chooseAction(
   const movement = Math.max(0, actor.movement);
   if (movement <= 0 || !map) return { type: "WAIT" as const, actorId: actor.id, targetId: target.id };
 
-  const lowHealth = actor.hp > 0 && actor.hp / actor.maxHp <= 0.25;
   if (lowHealth) {
     const run = chooseRetreatDestination(actor, target, entities, map, getRunMovement(actor.movement), true);
     if (run) return { type: "RUN" as const, actorId: actor.id, targetId: target.id, destination: run };
