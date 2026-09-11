@@ -15,6 +15,35 @@ func _ready() -> void:
 	portrait.set_selected(true)
 	call_deferred("_connect_game_core")
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not event is InputEventKey:
+		return
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return
+	if key_event.keycode == KEY_A:
+		var scene_root := get_tree().current_scene
+		if scene_root != null:
+			var target_id := str(scene_root.get("selected_target_id"))
+			if target_id.is_empty():
+				for entity_variant in latest_state.get("entities", []) as Array:
+					if not entity_variant is Dictionary:
+						continue
+					var entity := entity_variant as Dictionary
+					if str(entity.get("id", "")) != PLAYER_ID and int(entity.get("hp", 0)) > -10:
+						target_id = str(entity.get("id", ""))
+						break
+			if not target_id.is_empty():
+				scene_root.call("_on_attack")
+		get_viewport().set_input_as_handled()
+		return
+	if key_event.keycode == KEY_T:
+		var scene_root := get_tree().current_scene
+		if scene_root != null:
+			scene_root.call("_on_end_turn")
+		get_viewport().set_input_as_handled()
+		return
+
 func _connect_game_core() -> void:
 	var scene_root := get_tree().current_scene
 	if scene_root == null:
