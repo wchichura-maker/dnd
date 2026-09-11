@@ -2,16 +2,24 @@ extends Control
 
 const TILE_SIZE: float = 48.0
 const PLAYER_ID := "player-01"
-const UNKNOWN_COLOR := Color(0.035, 0.029, 0.024, 0.90)
-const EXPLORED_COLOR := Color(0.08, 0.065, 0.052, 0.50)
+const VISION_RANGE: float = 12.0
+const EDGE_FADE_WIDTH: float = 2.5
+const UNKNOWN_MAX_ALPHA: float = 0.92
+const EXPLORED_ALPHA: float = 0.52
+const BLOCKED_ALPHA: float = 0.88
+const UNKNOWN_COLOR := Color(0.035, 0.029, 0.024, 1.0)
+const EXPLORED_COLOR := Color(0.08, 0.065, 0.052, 1.0)
 
 var explored_tiles: Dictionary[Vector2i, bool] = {}
 var visible_tiles: Dictionary[Vector2i, bool] = {}
 var map_size: Vector2i = Vector2i(120, 80)
 var client_connected := false
+var last_camera_center: Vector2 = Vector2.INF
+var player_tile: Vector2i = Vector2i.ZERO
 
 func _ready() -> void:
 	z_index = 100
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process(true)
 	_try_connect_client()
 	queue_redraw()
@@ -37,6 +45,9 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 		var size_variant: Variant = main.get("map_size")
 		if size_variant is Vector2i:
 			map_size = size_variant
+		var player_variant: Variant = main.get("player")
+		if player_variant is PlayerController:
+			player_tile = (player_variant as PlayerController).grid_position
 
 	var presentation_variant: Variant = snapshot.get("presentation", {})
 	if not presentation_variant is Dictionary:
@@ -55,8 +66,6 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 			if tile.x >= 0:
 				visible_tiles[tile] = true
 
-	# EXPLORED is cumulative presentation history. It never exposes hidden
-	# entities or hidden state; the authoritative VISIBLE set still comes from Core.
 	var explored_variant: Variant = perception.get("exploredTiles", [])
 	if explored_variant is Array:
 		for key_variant in explored_variant as Array:
@@ -94,7 +103,39 @@ func _update_entity_visibility() -> void:
 
 func _process(_delta: float) -> void:
 	_try_connect_client()
-	queue_redraw()
+	var main := get_tree().current_scene
+	if main == null:
+		return
+	var player_variant: Variant = main.get("player")
+	if player_variant is PlayerController:
+		var next_tile := (player_variant as PlayerController).grid_position
+		if next_tile != player_tile:
+			player_tile = next_tile
+			queue_redraw()
+	var camera := main.get_node_or_null("Player/Camera2D") as Camera2D
+	if camera == null:
+		return
+	var center := camera.get_screen_center_position()
+	if last_camera_center == Vector2.INF or center.distance_squared_to(last_camera_center) > 0.01:
+		last_camera_center = center
+		queue_redraw()
+
+func _tile_alpha(tile: Vector2i) -> float:
+	if visible_tiles.has(tile):
+		return 0.0
+
+	var delta := Vector2(tile - player_tile)
+	var distance := delta.length()
+	if distance <= VISION_RANGE:
+		# Non-visible cells inside the vision radius are primarily occluded by
+		# walls/obstacles. Keep them strongly covered instead of revealing them.
+		var edge := smoothstep(VISION_RANGE - EDGE_FADE_WIDTH, VISION_RANGE, distance)
+		return lerpf(0.04, BLOCKED_ALPHA, edge)
+
+	if explored_tiles.has(tile):
+		return EXPLORED_ALPHA
+
+	return UNKNOWN_MAX_ALPHA
 
 func _draw() -> void:
 	var main := get_tree().current_scene
@@ -117,10 +158,13 @@ func _draw() -> void:
 	for y in range(min_y, max_y + 1):
 		for x in range(min_x, max_x + 1):
 			var tile := Vector2i(x, y)
-			if visible_tiles.has(tile):
+			var alpha := _tile_alpha(tile)
+			if alpha <= 0.001:
 				continue
 			var world_position := Vector2(tile) * TILE_SIZE
 			var screen_position := (world_position - screen_center) * camera.zoom + viewport_pixels * 0.5
 			var screen_tile_size := Vector2.ONE * TILE_SIZE * camera.zoom
 			var rect := Rect2(screen_position, screen_tile_size)
-			draw_rect(rect, EXPLORED_COLOR if explored_tiles.has(tile) else UNKNOWN_COLOR)
+			var color := EXPLORED_COLOR if explored_tiles.has(tile) else UNKNOWN_COLOR
+			color.a = alpha
+			draw_rect(rect, color)
