@@ -13,8 +13,6 @@ var selected_target_id: String = ""
 var latest_state: Dictionary = {}
 var latest_action_log: Array = []
 var death_screen_shown: bool = false
-var pending_ai_actions: Array = []
-var ai_animation_running: bool = false
 
 func _ready() -> void:
 	adapter = GameEntityAdapter.new()
@@ -55,10 +53,6 @@ func _on_core_state_received(snapshot: Dictionary) -> void:
 	_apply_entity_state(state)
 	_update_combat_hud(state, snapshot)
 	_update_death_screen(state)
-	var ai_actions_variant: Variant = snapshot.get("aiActions", [])
-	if ai_actions_variant is Array and not (ai_actions_variant as Array).is_empty():
-		pending_ai_actions = ai_actions_variant as Array
-		_play_pending_ai_actions()
 	queue_redraw()
 
 func _apply_map_state(state: Dictionary) -> void:
@@ -159,62 +153,9 @@ func _on_coup_de_grace() -> void:
 	game_core.request_action({"type": "COUP_DE_GRACE", "actorId": PLAYER_ID, "targetId": selected_target_id})
 func _on_end_turn() -> void: game_core.end_turn()
 
-func _on_action_resolved(action_result: Dictionary, snapshot: Dictionary) -> void:
+func _on_action_resolved(action_result: Dictionary, _snapshot: Dictionary) -> void:
 	var message := str(action_result.get("message", ""))
 	if not message.is_empty(): _set_debug_status("Game Core: %s" % message)
-	var ai_actions_variant: Variant = snapshot.get("aiActions", [])
-	if ai_actions_variant is Array and not (ai_actions_variant as Array).is_empty():
-		pending_ai_actions = ai_actions_variant as Array
-
-func _play_pending_ai_actions() -> void:
-	if ai_animation_running or pending_ai_actions.is_empty(): return
-	ai_animation_running = true
-	var actions := pending_ai_actions
-	pending_ai_actions = []
-	await _animate_ai_action_sequence(actions)
-	ai_animation_running = false
-
-func _animate_ai_action_sequence(actions: Array) -> void:
-	for event_variant in actions:
-		if not event_variant is Dictionary: continue
-		var event := event_variant as Dictionary
-		var action_variant: Variant = event.get("action", {})
-		if not action_variant is Dictionary: continue
-		var action := action_variant as Dictionary
-		var actor_id := str(action.get("actorId", ""))
-		if actor_id.is_empty() or actor_id == PLAYER_ID: continue
-		var path_variant: Variant = event.get("movementPath", [])
-		if not path_variant is Array or (path_variant as Array).is_empty(): continue
-		var node := entity_nodes.get(actor_id) as Node2D
-		if not is_instance_valid(node): continue
-		var before_position := _get_event_actor_position(event, actor_id)
-		if before_position == Vector2i(-99999, -99999): continue
-		node.position = _grid_to_world(before_position)
-		var tween := create_tween()
-		tween.set_trans(Tween.TRANS_LINEAR)
-		tween.set_ease(Tween.EASE_IN_OUT)
-		for tile_variant in path_variant as Array:
-			if not tile_variant is Dictionary: continue
-			var tile := tile_variant as Dictionary
-			var destination := Vector2i(int(tile.get("x", before_position.x)), int(tile.get("y", before_position.y)))
-			tween.tween_property(node, "position", _grid_to_world(destination), 0.12)
-		await tween.finished
-
-func _get_event_actor_position(event: Dictionary, actor_id: String) -> Vector2i:
-	var before_variant: Variant = event.get("before", {})
-	if not before_variant is Dictionary: return Vector2i(-99999, -99999)
-	var before := before_variant as Dictionary
-	var entities_variant: Variant = before.get("entities", [])
-	if not entities_variant is Array: return Vector2i(-99999, -99999)
-	for entity_variant in entities_variant as Array:
-		if not entity_variant is Dictionary: continue
-		var entity := entity_variant as Dictionary
-		if str(entity.get("id", "")) != actor_id: continue
-		var position_variant: Variant = entity.get("position", {})
-		if not position_variant is Dictionary: return Vector2i(-99999, -99999)
-		var position := position_variant as Dictionary
-		return Vector2i(int(position.get("x", 0)), int(position.get("y", 0)))
-	return Vector2i(-99999, -99999)
 
 func _update_combat_hud(state: Dictionary, snapshot: Dictionary) -> void:
 	var mode := str(state.get("mode", "EXPLORATION"))
@@ -248,9 +189,9 @@ func _update_attack_button() -> void:
 	$CombatHUD/Panel/Margin/VBox/Attack.disabled = str(latest_state.get("mode", "EXPLORATION")) != "COMBAT" or active_id != PLAYER_ID or selected_target_id.is_empty()
 
 func _update_action_log() -> void:
-	var label: Label = $CombatHUD/Panel/Margin/VBox/ActionLog
+	var label: Label = $CombatHUD/ActionLogPanel/Margin/VBox/ActionLog
 	var lines: Array[String] = []
-	var start_index := maxi(0, latest_action_log.size() - 8)
+	var start_index := maxi(0, latest_action_log.size() - 6)
 	for index in range(start_index, latest_action_log.size()):
 		var entry_variant: Variant = latest_action_log[index]
 		if not entry_variant is Dictionary: continue
@@ -265,26 +206,21 @@ func _update_action_log() -> void:
 			var data := data_variant as Dictionary
 			if data.has("attack"):
 				var attack := data.get("attack", {}) as Dictionary
-				detail_lines.append("ROLAGEM: d20=%s | bônus=%s | total=%s | %s | dano=%s" % [str(attack.get("roll", "?")), str(attack.get("attackBonus", "?")), str(attack.get("total", "?")), "CRÍTICO" if bool(attack.get("critical", false)) else ("ACERTO" if bool(attack.get("hit", false)) else "ERRO"), str(attack.get("damage", 0))])
+				detail_lines.append("d20=%s + %s = %s | %s | dano=%s" % [str(attack.get("roll", "?")), str(attack.get("attackBonus", "?")), str(attack.get("total", "?")), "CRÍTICO" if bool(attack.get("critical", false)) else ("ACERTO" if bool(attack.get("hit", false)) else "ERRO"), str(attack.get("damage", 0))])
 			if data.has("opportunityAttacks") and data.get("opportunityAttacks") is Array:
 				for a_variant in data.get("opportunityAttacks", []) as Array:
 					if a_variant is Dictionary:
 						var a := a_variant as Dictionary
-						detail_lines.append("AO: d20=%s + %s = %s | %s | dano=%s | HP %s→%s" % [str(a.get("roll", "?")), str(a.get("attackBonus", "?")), str(a.get("total", "?")), "CRÍTICO" if bool(a.get("critical", false)) else ("ACERTO" if bool(a.get("hit", false)) else "ERRO"), str(a.get("damage", 0)), str(a.get("hpBefore", "?")), str(a.get("hpAfter", "?"))])
+						detail_lines.append("AO d20=%s + %s = %s | %s | dano=%s | HP %s→%s" % [str(a.get("roll", "?")), str(a.get("attackBonus", "?")), str(a.get("total", "?")), "CRÍTICO" if bool(a.get("critical", false)) else ("ACERTO" if bool(a.get("hit", false)) else "ERRO"), str(a.get("damage", 0)), str(a.get("hpBefore", "?")), str(a.get("hpAfter", "?"))])
 			if data.has("fortitudeRoll"):
-				detail_lines.append("FORTITUDE: d20=%s" % str(data.get("fortitudeRoll", "?")))
+				detail_lines.append("Fortitude d20=%s" % str(data.get("fortitudeRoll", "?")))
 		var log_messages_variant: Variant = entry.get("logMessages", [])
 		if log_messages_variant is Array:
 			for log_message in log_messages_variant as Array:
 				var text := str(log_message)
 				if text.contains("teste de estabilização") or text.contains("ESTABILIZADO") or text.contains("falhou"):
 					detail_lines.append(text)
-		var turn_after_variant: Variant = entry.get("turnAfter", {})
-		var turn_text := ""
-		if turn_after_variant is Dictionary:
-			var turn_after := turn_after_variant as Dictionary
-			turn_text = " | M:%s A:%s MV:%s" % [str(turn_after.get("movement", "?")), str(turn_after.get("action", "?")), str(turn_after.get("moveAction", "?"))]
-		lines.append("[%s] %s %s%s\n%s%s" % ["OK" if success else "ERRO", source, action_type, turn_text, message, ("\n" + "\n".join(detail_lines)) if not detail_lines.is_empty() else ""])
+		lines.append("[%s] %s %s\n%s%s" % ["OK" if success else "ERRO", source, action_type, message, ("\n" + "\n".join(detail_lines)) if not detail_lines.is_empty() else ""])
 	label.text = "REGISTRO DE AÇÕES\n" + ("\n".join(lines) if not lines.is_empty() else "Nenhuma ação registrada.")
 
 func _is_selected_target_helpless() -> bool:
