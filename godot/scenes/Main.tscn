@@ -1,8 +1,9 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/PlayerController.gd" id="2_player"]
 [ext_resource type="Script" path="res://scripts/GridMovementController.gd" id="3_movement"]
+[ext_resource type="Script" path="res://scripts/CameraController.gd" id="4_camera"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.188, 0.149, 0.118, 0.86)
@@ -58,6 +59,7 @@ limit_top = 0
 limit_right = 1248
 limit_bottom = 768
 limit_smoothed = true
+script = ExtResource("4_camera")
 
 [node name="GridMovementController" type="Node2D" parent="."]
 script = ExtResource("3_movement")
