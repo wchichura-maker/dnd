@@ -14,17 +14,42 @@ func move_along_path(path: Array[Vector2i], step_duration: float) -> void:
 		return
 
 	is_moving = true
+	var view := get_node_or_null("EntityView") as EntityView
 	var tween: Tween = create_tween()
 	tween.set_trans(Tween.TRANS_LINEAR)
 	tween.set_ease(Tween.EASE_IN_OUT)
 
+	var previous_tile := grid_position
 	for tile in path:
+		var delta := tile - previous_tile
+		if view != null and delta != Vector2i.ZERO:
+			view.set_facing_direction(_direction_from_delta(delta))
 		grid_position = tile
 		var world_position: Vector2 = Vector2(tile) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
 		tween.tween_property(self, "position", world_position, step_duration)
+		previous_tile = tile
 
 	tween.finished.connect(_on_movement_finished.bind(path.back()))
 
 func _on_movement_finished(final_tile: Vector2i) -> void:
 	grid_position = final_tile
 	is_moving = false
+
+func _direction_from_delta(delta: Vector2i) -> int:
+	var x := signi(delta.x)
+	var y := signi(delta.y)
+	if x == 0 and y > 0:
+		return CharacterAnimationState.Direction.SOUTH
+	if x > 0 and y > 0:
+		return CharacterAnimationState.Direction.SOUTHEAST
+	if x > 0 and y == 0:
+		return CharacterAnimationState.Direction.EAST
+	if x > 0 and y < 0:
+		return CharacterAnimationState.Direction.NORTHEAST
+	if x == 0 and y < 0:
+		return CharacterAnimationState.Direction.NORTH
+	if x < 0 and y < 0:
+		return CharacterAnimationState.Direction.NORTHWEST
+	if x < 0 and y == 0:
+		return CharacterAnimationState.Direction.WEST
+	return CharacterAnimationState.Direction.SOUTHWEST
