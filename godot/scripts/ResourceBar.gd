@@ -16,6 +16,8 @@ var _tween: Tween
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	z_as_relative = false
+	z_index = 20
 	queue_redraw()
 
 func set_value(new_current: float, new_maximum: float) -> void:
@@ -37,12 +39,17 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	var bar_size := get_rect().size
+	if bar_size.x <= 0.0 or bar_size.y <= 0.0:
+		return
+
+	# O preenchimento é desenhado pelo sistema e fica explicitamente acima do frame.
+	# O fundo é mantido transparente para que a moldura original continue definindo o encaixe.
 	var ratio := clampf(displayed_ratio, 0.0, 1.0)
-	var width := size.x * ratio
 	var active_color := fill_color
 	if ratio <= 0.25:
 		active_color = critical_fill_color
 	elif ratio <= 0.5:
 		active_color = low_fill_color
-	if width > 0.0:
-		draw_rect(Rect2(0.0, 0.0, width, size.y), active_color)
+
+	draw_rect(Rect2(Vector2.ZERO, Vector2(bar_size.x * ratio, bar_size.y)), active_color)
