@@ -62,12 +62,14 @@ function processAutomaticCombatStart(): Array<object> {
 
 function runAiTurns(): Array<object> {
   const run = executeAiTurns(engine);
-  for (const event of run.events) {
+  return run.events.map(event => {
+    const actorBefore = event.before.entities.find(entity => entity.id === event.action.actorId);
+    const after = engine.getState();
+    const actorAfter = after.entities.find(entity => entity.id === event.action.actorId);
     recordAction(event.action, event.result, event.before, event.movementPath, "AI");
     if (event.endTurn) appendActionLog({ source: "AI", type: "END_TURN", actorId: event.action.actorId, success: event.endTurn.success, message: event.endTurn.message, data: event.endTurn.data ?? null, turnAfter: getTurnDebug() });
-  }
-  if (run.stoppedByGuard) appendActionLog({ source: "SYSTEM", type: "AI_TURN_GUARD", actorId: null, success: false, message: "Ciclo de turnos AI interrompido pelo limite de segurança." });
-  return run.events.map(event => ({ action: event.action, result: event.result, movementPath: event.movementPath, endTurn: event.endTurn ?? null }));
+    return { action: event.action, result: event.result, movementPath: event.movementPath, positionBefore: actorBefore?.position ?? null, positionAfter: actorAfter?.position ?? null, endTurn: event.endTurn ?? null };
+  });
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
