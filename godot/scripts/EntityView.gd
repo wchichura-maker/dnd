@@ -1,7 +1,7 @@
 extends Node2D
 
-## Presentation-only view for a game entity.
-## Logical state remains outside this node.
+## Presentation-only view for the game entity.
+## Restores the original working overhead HP indicator, now red.
 
 class_name EntityView
 
@@ -16,11 +16,15 @@ var character_sprite: AnimatedSprite2D
 var animation_controller: CharacterAnimationController
 
 const RADIUS: float = 14.0
+const BAR_WIDTH: float = 42.0
+const BAR_HEIGHT: float = 5.0
 const PAPER_BURNED := Color("d6c9a8")
 const WOOD_DARK := Color("30261e")
 const LEATHER := Color("70553d")
 const GOLD := Color("b08a4d")
-const FAILURE := Color("93483d")
+const HP_RED := Color("d92f2f")
+const HP_RED_DARK := Color("7f1d1d")
+const TEXT_RED := Color("ff5a5a")
 
 func _ready() -> void:
 	_ensure_character_sprite()
@@ -36,8 +40,6 @@ func apply_snapshot(snapshot: EntitySnapshot) -> void:
 	if animation_controller == null or character_sprite == null:
 		return
 	animation_controller.set_entity_type(entity_type)
-	# Authoritative snapshots must not interrupt an animation that was just
-	# triggered by an action or damage event. The controller owns transitions.
 	if not animation_controller.has_playable_animation():
 		animation_controller.set_state(CharacterAnimationState.State.IDLE, true)
 	character_sprite.visible = entity_type == "PLAYER" and animation_controller.has_playable_animation()
@@ -75,12 +77,23 @@ func _draw() -> void:
 	if not has_character_art:
 		var ring_color: Color = GOLD if selected else LEATHER
 		var body_color: Color = LEATHER if entity_type == "PLAYER" else WOOD_DARK
-		draw_circle(Vector2.ZERO, RADIUS, FAILURE if is_dead else body_color)
+		draw_circle(Vector2.ZERO, RADIUS, HP_RED_DARK if is_dead else body_color)
 		draw_circle(Vector2.ZERO, RADIUS, PAPER_BURNED, false, 1.5)
 		draw_line(Vector2(0, -4), Vector2(0, -18), PAPER_BURNED, 2.0)
 		draw_circle(Vector2.ZERO, 20.0, Color(WOOD_DARK, 0.92), false, 2.0)
 		draw_arc(Vector2.ZERO, 20.0, 0.0, TAU, 32, ring_color, 2.5 if selected else 1.5)
 
-	# HP is presented exclusively by PartyHUD; no overhead health bar is drawn here.
+	# Original working overhead HP bar: fill width follows hp/max_hp exactly.
+	var hp_ratio: float = clampf(float(hp) / float(max_hp), 0.0, 1.0) if max_hp > 0 else 0.0
+	var bar_origin := Vector2(-BAR_WIDTH * 0.5, -31.0)
+	draw_rect(Rect2(bar_origin, Vector2(BAR_WIDTH, BAR_HEIGHT)), HP_RED_DARK, true)
+	if hp_ratio > 0.0:
+		draw_rect(Rect2(bar_origin, Vector2(BAR_WIDTH * hp_ratio, BAR_HEIGHT)), HP_RED, true)
+	draw_rect(Rect2(bar_origin, Vector2(BAR_WIDTH, BAR_HEIGHT)), Color("1a1110"), false, 1.0)
+
+	# Numeric HP indicator restored above the bar.
+	var hp_text := "%d/%d" % [hp, max_hp]
+	draw_string(ThemeDB.fallback_font, Vector2(-28, -34), hp_text, HORIZONTAL_ALIGNMENT_CENTER, 56, 9, TEXT_RED)
+
 	if entity_name != "":
 		draw_string(ThemeDB.fallback_font, Vector2(-40, 34), entity_name, HORIZONTAL_ALIGNMENT_CENTER, 80, 12, PAPER_BURNED)
