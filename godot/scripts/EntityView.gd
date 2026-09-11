@@ -12,7 +12,8 @@ var hp: int = 0
 var max_hp: int = 0
 var armor_class: int = 10
 var selected: bool = false
-var character_sprite: Sprite2D
+var character_sprite: AnimatedSprite2D
+var animation_controller: CharacterAnimationController
 
 const RADIUS: float = 14.0
 const BAR_WIDTH: float = 42.0
@@ -35,15 +36,36 @@ func apply_snapshot(snapshot: EntitySnapshot) -> void:
 	max_hp = snapshot.max_hp
 	armor_class = snapshot.armor_class
 	_ensure_character_sprite()
-	if character_sprite != null:
-		character_sprite.texture = AssetRegistry.character_texture(entity_type)
-		character_sprite.visible = character_sprite.texture != null
+	var base_texture := AssetRegistry.character_texture(entity_type)
+	if character_sprite.sprite_frames == null:
+		character_sprite.sprite_frames = SpriteFrames.new()
+	if not character_sprite.sprite_frames.has_animation("IDLE"):
+		character_sprite.sprite_frames.add_animation("IDLE")
+		character_sprite.sprite_frames.set_animation_loop("IDLE", true)
+		if base_texture != null:
+			character_sprite.sprite_frames.add_frame("IDLE", base_texture)
+	if character_sprite.sprite_frames.has_animation("IDLE") and character_sprite.sprite_frames.get_frame_count("IDLE") > 0:
+		character_sprite.play("IDLE")
+	character_sprite.visible = base_texture != null or _has_interact_animation()
 	queue_redraw()
+
+func play_interact() -> void:
+	if animation_controller != null:
+		animation_controller.play_interact()
+
+func set_facing_direction(value: CharacterAnimationState.Direction) -> void:
+	if animation_controller != null:
+		animation_controller.set_direction(value)
+
+func _has_interact_animation() -> bool:
+	if character_sprite == null or character_sprite.sprite_frames == null:
+		return false
+	return character_sprite.sprite_frames.has_animation("INTERACT_SOUTH")
 
 func _ensure_character_sprite() -> void:
 	if character_sprite != null:
 		return
-	character_sprite = Sprite2D.new()
+	character_sprite = AnimatedSprite2D.new()
 	character_sprite.name = "CharacterSprite"
 	character_sprite.centered = true
 	character_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -51,20 +73,23 @@ func _ensure_character_sprite() -> void:
 	character_sprite.position = Vector2(0, -5)
 	add_child(character_sprite)
 
+	animation_controller = CharacterAnimationController.new()
+	animation_controller.name = "AnimationController"
+	add_child(animation_controller)
+	animation_controller.configure(character_sprite)
+
 func _draw() -> void:
 	var ring_color: Color = GOLD if selected else LEATHER
 	var is_dead := hp <= -10
 	var is_dying := hp < 0 and not is_dead
-	var has_character_art := character_sprite != null and character_sprite.texture != null
+	var has_character_art := character_sprite != null and character_sprite.visible
 
-	# Fallback visual remains available until the temporary pack is installed.
 	if not has_character_art:
 		var body_color: Color = LEATHER if entity_type == "PLAYER" else WOOD_DARK
 		draw_circle(Vector2.ZERO, RADIUS, FAILURE if is_dead else body_color)
 		draw_circle(Vector2.ZERO, RADIUS, PAPER_BURNED, false, 1.5)
 		draw_line(Vector2(0, -4), Vector2(0, -18), PAPER_BURNED, 2.0)
 
-	# The ring remains presentation-only and communicates selection/state.
 	draw_circle(Vector2.ZERO, 20.0, Color(WOOD_DARK, 0.92), false, 2.0)
 	draw_arc(Vector2.ZERO, 20.0, 0.0, TAU, 32, ring_color, 2.5 if selected else 1.5)
 
