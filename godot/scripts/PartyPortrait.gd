@@ -15,10 +15,10 @@ const STATE_DEAD := "DEAD"
 @export var character_id: String = "player-01"
 
 var level: int = 1
-var current_hp: float = 0.0
-var max_hp: float = 0.0
-var current_food: float = 0.0
-var max_food: float = 0.0
+var current_hp: float = 30.0
+var max_hp: float = 30.0
+var current_food: float = 100.0
+var max_food: float = 100.0
 var selected: bool = false
 var active: bool = false
 var conditions: Array = []
@@ -35,6 +35,9 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	$ClickTarget.pressed.connect(_on_pressed)
+	hp_bar.set_value(current_hp, max_hp)
+	food_bar.set_value(current_food, max_food)
+	level_badge.text = str(level)
 	_set_visuals()
 
 func apply_data(data: Dictionary) -> void:
