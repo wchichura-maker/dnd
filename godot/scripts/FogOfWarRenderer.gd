@@ -10,68 +10,47 @@ var explored_tiles: Dictionary[Vector2i, bool] = {}
 var visible_tiles: Dictionary[Vector2i, bool] = {}
 var map_size: Vector2i = Vector2i(120, 80)
 var last_camera_center: Vector2 = Vector2.INF
-var last_state: Dictionary = {}
-var refresh_accumulator: float = 0.0
 
 func _ready() -> void:
 	z_index = 20
-	process_mode = Node.PROCESS_MODE_ALWAYS
+	var main := get_tree().current_scene
+	if main != null:
+		var client := main.get_node_or_null("GameCoreClient") as GameCoreClient
+		if client != null:
+			client.state_received.connect(_on_snapshot)
 
-func _get_main() -> Node:
-	return get_tree().current_scene
+func _on_snapshot(snapshot: Dictionary) -> void:
+	var main := get_tree().current_scene
+	if main != null:
+		var size_variant: Variant = main.get("map_size")
+		if size_variant is Vector2i:
+			map_size = size_variant
 
-func _refresh_from_core() -> void:
-	var main := _get_main()
-	if main == null:
+	var presentation_variant: Variant = snapshot.get("presentation", {})
+	if not presentation_variant is Dictionary:
 		return
-	var state_variant: Variant = main.get("latest_state")
-	if not state_variant is Dictionary:
+	var presentation := presentation_variant as Dictionary
+	var perception_variant: Variant = presentation.get("perception", {})
+	if not perception_variant is Dictionary:
 		return
-	var state := state_variant as Dictionary
-	if state.is_empty() or state == last_state:
-		return
-	last_state = state
-	map_size = main.get("map_size") if main.get("map_size") is Vector2i else map_size
+	var perception := perception_variant as Dictionary
 
-	var player_position := Vector2i(-1, -1)
-	var entities_variant: Variant = state.get("entities", [])
-	if entities_variant is Array:
-		for entity_variant in entities_variant as Array:
-			if not entity_variant is Dictionary:
-				continue
-			var entity := entity_variant as Dictionary
-			if str(entity.get("id", "")) == PLAYER_ID:
-				var position_variant: Variant = entity.get("position", {})
-				if position_variant is Dictionary:
-					var position := position_variant as Dictionary
-					player_position = Vector2i(int(position.get("x", 0)), int(position.get("y", 0)))
-				break
-
-	# The Core presentation contains the authoritative currently visible set.
-	# Exploration is intentionally accumulated here as presentation history;
-	# hidden world information is never inferred from the camera.
 	visible_tiles.clear()
-	var presentation_variant: Variant = main.get("latest_state")
-	var perception_variant: Variant = null
-	var snapshot_variant: Variant = main.get("latest_snapshot_for_fog")
-	if snapshot_variant is Dictionary:
-		var snapshot := snapshot_variant as Dictionary
-		var presentation := snapshot.get("presentation", {}) as Dictionary
-		perception_variant = presentation.get("perception", {})
-	if perception_variant is Dictionary:
-		var perception := perception_variant as Dictionary
-		var visible_variant: Variant = perception.get("visibleTiles", [])
-		if visible_variant is Array:
-			for key_variant in visible_variant as Array:
-				var tile := _parse_key(str(key_variant))
-				if tile.x >= 0:
-					visible_tiles[tile] = true
-			var explored_variant: Variant = perception.get("exploredTiles", [])
-			if explored_variant is Array:
-				for key_variant in explored_variant as Array:
-					var tile := _parse_key(str(key_variant))
-					if tile.x >= 0:
-						explored_tiles[tile] = true
+	var visible_variant: Variant = perception.get("visibleTiles", [])
+	if visible_variant is Array:
+		for key_variant in visible_variant as Array:
+			var tile := _parse_key(str(key_variant))
+			if tile.x >= 0:
+				visible_tiles[tile] = true
+
+	# EXPLORED is cumulative presentation history. It never exposes hidden
+	# entities or hidden state; the authoritative VISIBLE set still comes from Core.
+	var explored_variant: Variant = perception.get("exploredTiles", [])
+	if explored_variant is Array:
+		for key_variant in explored_variant as Array:
+			var tile := _parse_key(str(key_variant))
+			if tile.x >= 0:
+				explored_tiles[tile] = true
 
 	_update_entity_visibility()
 	queue_redraw()
@@ -83,7 +62,7 @@ func _parse_key(value: String) -> Vector2i:
 	return Vector2i(int(parts[0]), int(parts[1]))
 
 func _update_entity_visibility() -> void:
-	var main := _get_main()
+	var main := get_tree().current_scene
 	if main == null:
 		return
 	var nodes_variant: Variant = main.get("entity_nodes")
@@ -101,13 +80,8 @@ func _update_entity_visibility() -> void:
 		var tile := Vector2i(floori(node.position.x / TILE_SIZE), floori(node.position.y / TILE_SIZE))
 		node.visible = visible_tiles.has(tile)
 
-func _process(delta: float) -> void:
-	refresh_accumulator += delta
-	if refresh_accumulator >= 0.10:
-		refresh_accumulator = 0.0
-		_refresh_from_core()
-
-	var main := _get_main()
+func _process(_delta: float) -> void:
+	var main := get_tree().current_scene
 	if main == null:
 		return
 	var camera := main.get_node_or_null("Player/Camera2D") as Camera2D
@@ -119,7 +93,7 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 func _draw() -> void:
-	var main := _get_main()
+	var main := get_tree().current_scene
 	if main == null:
 		return
 	var camera := main.get_node_or_null("Player/Camera2D") as Camera2D
