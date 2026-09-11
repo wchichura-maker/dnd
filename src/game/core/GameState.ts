@@ -8,6 +8,7 @@ import type { Relationship } from "../relationships/Relationship";
 import type { RelationshipEvent } from "../relationships/RelationshipEvent";
 
 import type { GameMode } from "./GameMode";
+import type { WorldClockState } from "../time/WorldClock";
 
 export type GameState = {
   map: GameMap;
@@ -18,5 +19,6 @@ export type GameState = {
   encounter?: EncounterState;
   combat: CombatState;
   turn: Turn;
+  worldClock: WorldClockState;
   logs: string[];
 };
