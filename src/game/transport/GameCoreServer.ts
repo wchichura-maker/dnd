@@ -5,6 +5,7 @@ import { runAiTurns as executeAiTurns } from "./AITurnController";
 import { findPath, getReachablePositions } from "../rules/Pathfinding";
 import { calculatePerception, pointsToKeys } from "../rules/PerceptionRules";
 import { isDead } from "../rules/ConditionRules";
+import { consumeFoodForMovement, getMovementFoodCost } from "../survival/HungerSystem";
 import type { GameAction } from "../actions/Action";
 import type { ActionResult } from "../actions/ActionResult";
 
@@ -40,7 +41,7 @@ function recordAction(action: GameAction, result: ActionResult, before: ReturnTy
   const after = engine.getState();
   const actorBefore = before.entities.find(entity => entity.id === action.actorId);
   const actorAfter = after.entities.find(entity => entity.id === action.actorId);
-  appendActionLog({ source, type: action.type, actorId: action.actorId, targetId: action.targetId ?? null, destination: action.destination ?? null, success: result.success, message: result.message, data: result.data ?? null, logMessages: after.logs.slice(before.logs.length), movementPath, positionBefore: actorBefore?.position ?? null, positionAfter: actorAfter?.position ?? null, hpBefore: actorBefore?.hp ?? null, hpAfter: actorAfter?.hp ?? null, turnBefore: getTurnDebug(before), turnAfter: getTurnDebug(after) });
+  appendActionLog({ source, type: action.type, actorId: action.actorId, targetId: action.targetId ?? null, destination: action.destination ?? null, success: result.success, message: result.message, data: result.data ?? null, logMessages: after.logs.slice(before.logs.length), movementPath, positionBefore: actorBefore?.position ?? null, positionAfter: actorAfter?.position ?? null, hpBefore: actorBefore?.hp ?? null, hpAfter: actorAfter?.hp ?? null, foodBefore: actorBefore?.food ?? null, foodAfter: actorAfter?.food ?? null, turnBefore: getTurnDebug(before), turnAfter: getTurnDebug(after) });
 }
 
 function getPresentationState() {
@@ -92,10 +93,30 @@ function normalizeCombatAfterAction(): ActionResult | null {
   return engine.resolveCombat("DEATH");
 }
 
+function applyMovementHunger(action: GameAction, result: ActionResult, movementPath: Array<{ x: number; y: number }>): void {
+  if (!result.success || movementPath.length < 2) return;
+
+  const state = engine.getState();
+  const actor = state.entities.find(entity => entity.id === action.actorId);
+  if (!actor || actor.food === undefined || actor.maxFood === undefined) return;
+
+  const movedTiles = movementPath.length - 1;
+  const updatedActor = consumeFoodForMovement(actor, movedTiles);
+  if (updatedActor.food === actor.food) return;
+
+  const foodCost = getMovementFoodCost(movedTiles);
+  engine.setState({
+    ...state,
+    entities: state.entities.map(entity => entity.id === actor.id ? updatedActor : entity),
+    logs: [...state.logs, `${actor.name} perdeu ${foodCost} de fome ao se deslocar ${movedTiles} quadrado(s).`]
+  });
+}
+
 function runAiTurns(): Array<object> {
   const run = executeAiTurns(engine);
   return run.events.map(event => {
     const actorBefore = event.before.entities.find(entity => entity.id === event.action.actorId);
+    applyMovementHunger(event.action, event.result, event.movementPath);
     recordAction(event.action, event.result, event.before, event.movementPath, "AI");
     if (event.endTurn) appendActionLog({ source: "AI", type: "END_TURN", actorId: event.action.actorId, success: event.endTurn.success, message: event.endTurn.message, data: event.endTurn.data ?? null, turnAfter: getTurnDebug() });
     return { action: event.action, result: event.result, movementPath: event.movementPath, positionBefore: actorBefore?.position ?? null, positionAfter: engine.getState().entities.find(entity => entity.id === event.action.actorId)?.position ?? null, endTurn: event.endTurn ?? null };
@@ -151,6 +172,7 @@ const server = createServer(async (request, response) => {
         }
       }
       const result = engine.executeAction(action);
+      applyMovementHunger(action, result, movementPath);
       const combatResolution = result.success ? normalizeCombatAfterAction() : null;
       const finalResult: ActionResult = combatResolution?.success
         ? { ...result, message: `${result.message} ${combatResolution.message}`, data: { ...(result.data ?? {}), combatEnded: true, combatEndReason: "DEATH" } }
