@@ -123,6 +123,10 @@ export const playerCharacter: Combatant = {
 
   maxHp: 30,
 
+  food: 100,
+
+  maxFood: 100,
+
   movement: 6,
 
   initiative: 0,
