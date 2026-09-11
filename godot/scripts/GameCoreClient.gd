@@ -8,6 +8,7 @@ signal transport_error(message: String)
 const BASE_URL: String = "http://127.0.0.1:8787"
 var http_request: HTTPRequest
 var busy: bool = false
+var latest_snapshot: Dictionary = {}
 
 func _ready() -> void:
 	http_request = HTTPRequest.new()
@@ -42,6 +43,7 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 		transport_error.emit("Resposta inválida do Game Core.")
 		return
 	var payload: Dictionary = parsed
+	latest_snapshot = payload
 	var action_result: Dictionary = payload.get("actionResult", {}) as Dictionary
 	if response_code < 200 or response_code >= 300:
 		var message := str(action_result.get("message", payload.get("message", "Ação rejeitada pelo Game Core.")))
