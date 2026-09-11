@@ -3,6 +3,7 @@ import { GameEngineEncounterActions } from "../core/GameEngineEncounterActions";
 import { createInitialGameState } from "../core/createInitialGameState";
 import { runAiTurns as executeAiTurns } from "./AITurnController";
 import { findPath, getReachablePositions } from "../rules/Pathfinding";
+import { calculatePerception, pointsToKeys } from "../rules/PerceptionRules";
 import type { GameAction } from "../actions/Action";
 import type { ActionResult } from "../actions/ActionResult";
 
@@ -46,7 +47,17 @@ function getPresentationState() {
   const player = state.entities.find(entity => entity.id === PLAYER_ID);
   const activeId = getActiveId(state);
   const movementBudget = activeId === PLAYER_ID ? state.turn.resources.movement : 0;
-  return { playerId: PLAYER_ID, activeId, movementBudget, reachablePositions: activeId === PLAYER_ID && player ? getReachablePositions(state.map, state.entities, player.position, movementBudget, player.id) : [] };
+  const perception = player ? calculatePerception(state.map, player.position) : { visibleTiles: [], exploredTiles: [] };
+  return {
+    playerId: PLAYER_ID,
+    activeId,
+    movementBudget,
+    reachablePositions: activeId === PLAYER_ID && player ? getReachablePositions(state.map, state.entities, player.position, movementBudget, player.id) : [],
+    perception: {
+      visibleTiles: pointsToKeys(perception.visibleTiles),
+      exploredTiles: pointsToKeys(perception.exploredTiles)
+    }
+  };
 }
 
 function getSnapshot(): object { return { state: engine.getState(), presentation: getPresentationState(), actionLog }; }
@@ -64,11 +75,9 @@ function runAiTurns(): Array<object> {
   const run = executeAiTurns(engine);
   return run.events.map(event => {
     const actorBefore = event.before.entities.find(entity => entity.id === event.action.actorId);
-    const after = engine.getState();
-    const actorAfter = after.entities.find(entity => entity.id === event.action.actorId);
     recordAction(event.action, event.result, event.before, event.movementPath, "AI");
     if (event.endTurn) appendActionLog({ source: "AI", type: "END_TURN", actorId: event.action.actorId, success: event.endTurn.success, message: event.endTurn.message, data: event.endTurn.data ?? null, turnAfter: getTurnDebug() });
-    return { action: event.action, result: event.result, movementPath: event.movementPath, positionBefore: actorBefore?.position ?? null, positionAfter: actorAfter?.position ?? null, endTurn: event.endTurn ?? null };
+    return { action: event.action, result: event.result, movementPath: event.movementPath, positionBefore: actorBefore?.position ?? null, positionAfter: engine.getState().entities.find(entity => entity.id === event.action.actorId)?.position ?? null, endTurn: event.endTurn ?? null };
   });
 }
 
