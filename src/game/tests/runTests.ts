@@ -20,6 +20,7 @@ import { runEncounterInitiativeTests } from "./EncounterInitiativeTest";
 import { runEncounterActionsTests } from "./EncounterActionsTest";
 import { runEncounterResolutionTests } from "./EncounterResolutionTest";
 import { runGameCoreServerIntegrationTests } from "./GameCoreServerIntegrationTest";
+import { runHungerSystemTests } from "./HungerSystemTest";
 
 runRulesTests();
 runRangeRulesTests();
@@ -42,4 +43,5 @@ runCombatMovementIntegrationTests();
 runEncounterInitiativeTests();
 runEncounterActionsTests();
 runEncounterResolutionTests();
+runHungerSystemTests();
 await runGameCoreServerIntegrationTests();
