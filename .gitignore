@@ -27,4 +27,6 @@ dist-ssr
 .godot/
 *.godot.tmp
 *.godot.import
+*.import
+*.uid
 /export/
