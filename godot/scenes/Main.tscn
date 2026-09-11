@@ -4,6 +4,18 @@
 [ext_resource type="Script" path="res://scripts/PlayerController.gd" id="2_player"]
 [ext_resource type="Script" path="res://scripts/GridMovementController.gd" id="3_movement"]
 
+[sub_resource type="StyleBoxFlat" id="StylePanel"]
+bg_color = Color(0.188, 0.149, 0.118, 0.86)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.69, 0.541, 0.302, 0.7)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
 
@@ -33,35 +45,49 @@ offset_left = 18.0
 offset_top = 18.0
 offset_right = 430.0
 offset_bottom = 500.0
+theme_override_styles/panel = SubResource("StylePanel")
 
 [node name="Margin" type="MarginContainer" parent="CombatHUD/Panel"]
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 10
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
 
 [node name="VBox" type="VBoxContainer" parent="CombatHUD/Panel/Margin"]
+theme_override_constants/separation = 8
 
 [node name="Status" type="Label" parent="CombatHUD/Panel/Margin/VBox"]
+theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
+theme_override_font_sizes/font_size = 15
 text = "Game Core: conectando..."
 
 [node name="Target" type="Label" parent="CombatHUD/Panel/Margin/VBox"]
+theme_override_colors/font_color = Color(0.69, 0.541, 0.302, 1)
+theme_override_font_sizes/font_size = 14
 text = "Alvo: nenhum"
 
 [node name="Attack" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
+theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
+theme_override_colors/font_hover_color = Color(0.69, 0.541, 0.302, 1)
 text = "Atacar alvo"
 flat = true
 
 [node name="CoupDeGrace" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
+theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
+theme_override_colors/font_hover_color = Color(0.69, 0.541, 0.302, 1)
 text = "Golpe de Misericórdia"
 flat = true
 
 [node name="EndTurn" type="Button" parent="CombatHUD/Panel/Margin/VBox"]
+theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
+theme_override_colors/font_hover_color = Color(0.69, 0.541, 0.302, 1)
 text = "Encerrar turno"
 flat = true
 
 [node name="ActionLog" type="Label" parent="CombatHUD/Panel/Margin/VBox"]
 custom_minimum_size = Vector2(0, 280)
+theme_override_colors/font_color = Color(0.714, 0.655, 0.514, 1)
+theme_override_font_sizes/font_size = 11
 autowrap_mode = 2
 text = "REGISTRO DE AÇÕES\nNenhuma ação registrada."
 
@@ -70,8 +96,8 @@ text = "REGISTRO DE AÇÕES\nNenhuma ação registrada."
 [node name="Label" type="Label" parent="DebugOverlay"]
 offset_left = 24.0
 offset_top = 510.0
-theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.714, 0.655, 0.514, 1)
+theme_override_font_sizes/font_size = 12
 text = "Clique esquerdo: mover / selecionar alvo\nClique direito: selecionar alvo\nESC: sair"
 
 [node name="DeathOverlay" type="CanvasLayer" parent="."]
@@ -79,7 +105,7 @@ text = "Clique esquerdo: mover / selecionar alvo\nClique direito: selecionar alv
 [node name="Dim" type="ColorRect" parent="DeathOverlay"]
 offset_right = 1280.0
 offset_bottom = 720.0
-color = Color(0, 0, 0, 0.78)
+color = Color(0.188, 0.149, 0.118, 0.78)
 mouse_filter = 2
 
 [node name="Center" type="CenterContainer" parent="DeathOverlay"]
@@ -92,16 +118,22 @@ theme_override_constants/separation = 18
 [node name="Message" type="Label" parent="DeathOverlay/Center/VBox"]
 text = "VOCÊ MORREU"
 horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
 theme_override_font_sizes/font_size = 42
 
 [node name="Hint" type="Label" parent="DeathOverlay/Center/VBox"]
 text = "Seu personagem chegou ao fim. Escolha como continuar."
 horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.714, 0.655, 0.514, 1)
 
 [node name="Spectator" type="Button" parent="DeathOverlay/Center/VBox"]
+theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
+theme_override_colors/font_hover_color = Color(0.69, 0.541, 0.302, 1)
 text = "Continuar como espectador"
 flat = true
 
 [node name="NewCharacter" type="Button" parent="DeathOverlay/Center/VBox"]
+theme_override_colors/font_color = Color(0.839, 0.788, 0.659, 1)
+theme_override_colors/font_hover_color = Color(0.69, 0.541, 0.302, 1)
 text = "Criar novo personagem"
 flat = true
