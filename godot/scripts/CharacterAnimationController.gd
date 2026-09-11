@@ -10,9 +10,9 @@ const FRAME_HEIGHT: int = 128
 const INTERACT_FPS: float = 8.0
 const INTERACT_FRAME_COUNT: int = 6
 const INTERACT_DIRECTION_COUNT: int = 8
-const INTERACT_SHEET := "res://assets/characters/human_fighter/animations/interact.png"
 
 var animated_sprite: AnimatedSprite2D
+var entity_type: String = "PLAYER"
 var current_state: CharacterAnimationState.State = CharacterAnimationState.State.IDLE
 var previous_state: CharacterAnimationState.State = CharacterAnimationState.State.IDLE
 var direction: CharacterAnimationState.Direction = CharacterAnimationState.Direction.SOUTH
@@ -28,6 +28,10 @@ func configure(sprite: AnimatedSprite2D) -> void:
 	animated_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if not animated_sprite.animation_finished.is_connected(_on_animation_finished):
 		animated_sprite.animation_finished.connect(_on_animation_finished)
+	_build_interact_animations()
+
+func set_entity_type(value: String) -> void:
+	entity_type = value
 	_build_interact_animations()
 
 func set_direction(value: CharacterAnimationState.Direction) -> void:
@@ -75,7 +79,7 @@ func _build_interact_animations() -> void:
 	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
 	var frames := animated_sprite.sprite_frames
-	var sheet := AssetRegistry.load_texture(INTERACT_SHEET)
+	var sheet := AssetRegistry.animation_sheet(CharacterAnimationState.State.INTERACT, entity_type)
 	if sheet == null:
 		return
 
