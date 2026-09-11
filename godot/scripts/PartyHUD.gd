@@ -2,7 +2,7 @@ extends CanvasLayer
 class_name PartyHUD
 
 const PLAYER_ID := "player-01"
-const WORLD_TIME_TEST_KEY := KEY_H
+const WORLD_TIME_TEST_KEY := KEY_F9
 
 var portrait: PartyPortrait
 var game_core: Node
