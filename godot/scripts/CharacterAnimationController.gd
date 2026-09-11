@@ -23,6 +23,8 @@ var direction_names: Array[String] = [
 
 func configure(sprite: AnimatedSprite2D) -> void:
 	animated_sprite = sprite
+	if animated_sprite.sprite_frames == null:
+		animated_sprite.sprite_frames = SpriteFrames.new()
 	animated_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if not animated_sprite.animation_finished.is_connected(_on_animation_finished):
 		animated_sprite.animation_finished.connect(_on_animation_finished)
@@ -47,7 +49,7 @@ func play_interact() -> void:
 	_play_current_animation(false)
 
 func _play_current_animation(loop: bool) -> void:
-	if animated_sprite == null:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
 	var animation_name := _animation_name(current_state)
 	if not animated_sprite.sprite_frames.has_animation(animation_name):
@@ -70,7 +72,7 @@ func _animation_name(state: CharacterAnimationState.State) -> String:
 	return CharacterAnimationState.State.keys()[state]
 
 func _build_interact_animations() -> void:
-	if animated_sprite == null:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
 	var frames := animated_sprite.sprite_frames
 	var sheet := AssetRegistry.load_texture(INTERACT_SHEET)
