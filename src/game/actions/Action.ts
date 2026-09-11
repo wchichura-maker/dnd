@@ -20,6 +20,7 @@ export type ActionType =
   | "ARREST"
   | "EQUIP"
   | "UNEQUIP"
+  | "EAT"
   | "WAIT";
 
 export type GameAction = {
