@@ -10,14 +10,26 @@ var explored_tiles: Dictionary[Vector2i, bool] = {}
 var visible_tiles: Dictionary[Vector2i, bool] = {}
 var map_size: Vector2i = Vector2i(120, 80)
 var last_camera_center: Vector2 = Vector2.INF
+var client_connected := false
 
 func _ready() -> void:
 	z_index = 20
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
+func _try_connect_client() -> void:
+	if client_connected:
+		return
 	var main := get_tree().current_scene
-	if main != null:
-		var client := main.get_node_or_null("GameCoreClient") as GameCoreClient
-		if client != null:
-			client.state_received.connect(_on_snapshot)
+	if main == null:
+		return
+	var client := main.get_node_or_null("GameCoreClient") as GameCoreClient
+	if client == null:
+		return
+	client.state_received.connect(_on_snapshot)
+	client_connected = true
+	var snapshot_variant: Variant = client.get("latest_snapshot")
+	if snapshot_variant is Dictionary and not (snapshot_variant as Dictionary).is_empty():
+		_on_snapshot(snapshot_variant as Dictionary)
 
 func _on_snapshot(snapshot: Dictionary) -> void:
 	var main := get_tree().current_scene
@@ -81,6 +93,7 @@ func _update_entity_visibility() -> void:
 		node.visible = visible_tiles.has(tile)
 
 func _process(_delta: float) -> void:
+	_try_connect_client()
 	var main := get_tree().current_scene
 	if main == null:
 		return
