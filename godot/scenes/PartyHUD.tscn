@@ -52,10 +52,10 @@ mouse_filter = 2
 z_index = 2
 
 [node name="HPBarMask" type="ColorRect" parent="PartyPortrait"]
-offset_left = 15.0
-offset_top = 62.0
-offset_right = 67.0
-offset_bottom = 69.0
+offset_left = 20.0
+offset_top = 63.0
+offset_right = 62.0
+offset_bottom = 68.0
 mouse_filter = 2
 color = Color(0.125, 0.098, 0.078, 1)
 z_as_relative = false
@@ -72,10 +72,10 @@ z_as_relative = false
 z_index = 20
 
 [node name="HPBar" type="Control" parent="PartyPortrait"]
-offset_left = 15.0
-offset_top = 62.0
-offset_right = 67.0
-offset_bottom = 69.0
+offset_left = 20.0
+offset_top = 63.0
+offset_right = 62.0
+offset_bottom = 68.0
 mouse_filter = 2
 script = ExtResource("3_bar")
 resource_type = "HP"
