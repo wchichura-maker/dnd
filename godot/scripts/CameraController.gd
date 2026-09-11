@@ -70,11 +70,13 @@ func _follow_player() -> void:
 		global_position = follow_target.global_position
 
 func _sync_map_size_from_main() -> void:
-	var main := get_parent().get_parent() if get_parent() != null else null
-	if main != null and "map_size" in main:
-		var value: Variant = main.get("map_size")
-		if value is Vector2i and value != map_size:
-			set_map_size(value)
+	var player_node := get_parent()
+	var main := player_node.get_parent() if player_node != null else null
+	if main == null:
+		return
+	var value: Variant = main.get("map_size")
+	if value is Vector2i and value != map_size:
+		set_map_size(value)
 
 func _apply_limits() -> void:
 	limit_left = 0
