@@ -7,8 +7,7 @@ class_name CameraController
 ##
 ## The free-camera window is intentionally bounded to 60 ft (12 squares).
 ## D&D 3.5 uses 5 ft per grid square, and 60 ft is a common explicit
-## sight/sensing reference (for example, standard darkvision). This is a
-## presentation ceiling for the prototype, not the final perception rule.
+## sight/sensing reference. This is a presentation ceiling for the prototype.
 
 const PAN_SPEED_CELLS: float = 8.0
 const CAMERA_RADIUS_CELLS: float = 12.0
@@ -90,7 +89,9 @@ func _apply_limits() -> void:
 	limit_top = 0
 	limit_right = int(map_size.x * GRID_CELL_PIXELS)
 	limit_bottom = int(map_size.y * GRID_CELL_PIXELS)
-	limit_smoothed = true
+	# The script performs the final clamp. Letting Camera2D smooth its limits as
+	# well creates a small oscillation when the free camera reaches a map edge.
+	limit_smoothed = false
 
 func _clamp_to_map() -> void:
 	var viewport_size := get_viewport_rect().size / zoom
