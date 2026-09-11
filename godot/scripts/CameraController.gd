@@ -13,25 +13,33 @@ var follow_target: Node2D
 var free_mode: bool = false
 var map_size: Vector2i = Vector2i(26, 16)
 
-func configure(target: Node2D) -> void:
-	follow_target = target
-	_apply_limits()
+func _ready() -> void:
+	# Keep the camera in the scene for now, but stop inheriting Player movement.
+	# This is important: free camera motion must not be coupled to the actor transform.
+	top_level = true
+	position_smoothing_enabled = true
+	position_smoothing_speed = 7.0
+	enabled = true
+	follow_target = get_parent() as Node2D
 	if follow_target != null:
 		global_position = follow_target.global_position
+	_sync_map_size_from_main()
+	_apply_limits()
+	_clamp_to_map()
 
 func set_map_size(size: Vector2i) -> void:
 	map_size = Vector2i(maxi(1, size.x), maxi(1, size.y))
 	_apply_limits()
 	_clamp_to_map()
 
-func _ready() -> void:
-	position_smoothing_enabled = true
-	position_smoothing_speed = 7.0
-	enabled = true
-
 func _process(delta: float) -> void:
+	_sync_map_size_from_main()
+
 	if Input.is_key_pressed(KEY_SPACE):
-		focus_player()
+		if free_mode:
+			focus_player()
+		else:
+			_follow_player()
 		return
 
 	var input_direction := Vector2.ZERO
@@ -45,8 +53,8 @@ func _process(delta: float) -> void:
 		input_direction = input_direction.normalized()
 		global_position += input_direction * GRID_CELL_PIXELS * PAN_SPEED_CELLS * delta
 		_clamp_to_map()
-	elif not free_mode and follow_target != null:
-		global_position = follow_target.global_position
+	elif not free_mode:
+		_follow_player()
 
 func focus_player() -> void:
 	if follow_target == null:
@@ -56,6 +64,17 @@ func focus_player() -> void:
 	tween.set_trans(Tween.TRANS_QUAD)
 	tween.set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "global_position", follow_target.global_position, FOCUS_DURATION)
+
+func _follow_player() -> void:
+	if follow_target != null:
+		global_position = follow_target.global_position
+
+func _sync_map_size_from_main() -> void:
+	var main := get_parent().get_parent() if get_parent() != null else null
+	if main != null and "map_size" in main:
+		var value: Variant = main.get("map_size")
+		if value is Vector2i and value != map_size:
+			set_map_size(value)
 
 func _apply_limits() -> void:
 	limit_left = 0
