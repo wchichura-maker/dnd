@@ -53,3 +53,5 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 	if payload.has("actionResult"):
 		action_resolved.emit(action_result, payload)
 	state_received.emit(payload)
+	else:
+		state_received.emit(payload)
