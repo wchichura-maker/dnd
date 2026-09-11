@@ -70,15 +70,14 @@ func _on_action_resolved(action_result: Dictionary, _snapshot: Dictionary) -> vo
 	var action := connected_game_core.last_requested_action
 	if str(action.get("actorId", "")) != "player-01":
 		return
+	var view := _get_player_view()
+	if view == null or view.animation_controller == null:
+		return
 	match str(action.get("type", "")):
 		"ATTACK", "COUP_DE_GRACE":
-			var view := _get_player_view()
-			if view != null:
-				view.animation_controller.play_state(CharacterAnimationState.State.ATTACK, false)
+			view.animation_controller.play_state(CharacterAnimationState.State.ATTACK, false)
 		"BLOCK":
-			var view := _get_player_view()
-			if view != null:
-				view.animation_controller.play_state(CharacterAnimationState.State.BLOCK, false)
+			view.animation_controller.play_state(CharacterAnimationState.State.BLOCK, false)
 
 func _on_state_received(snapshot: Dictionary) -> void:
 	var state_variant: Variant = snapshot.get("state", {})
@@ -95,7 +94,7 @@ func _on_state_received(snapshot: Dictionary) -> void:
 		var hp := int(entity.get("hp", 0))
 		if previous_hp.has(id) and hp < int(previous_hp[id]):
 			var view := _find_entity_view(id)
-			if view != null:
+			if view != null and view.animation_controller != null:
 				var state := CharacterAnimationState.State.DEATH if hp <= 0 else CharacterAnimationState.State.HIT
 				view.animation_controller.play_state(state, false)
 		previous_hp[id] = hp
