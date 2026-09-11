@@ -37,18 +37,8 @@ func apply_snapshot(snapshot: EntitySnapshot) -> void:
 	armor_class = snapshot.armor_class
 	_ensure_character_sprite()
 	animation_controller.set_entity_type(entity_type)
-	var base_texture := AssetRegistry.character_texture(entity_type)
-	if character_sprite.sprite_frames == null:
-		character_sprite.sprite_frames = SpriteFrames.new()
-	if not character_sprite.sprite_frames.has_animation("IDLE"):
-		character_sprite.sprite_frames.add_animation("IDLE")
-		character_sprite.sprite_frames.set_animation_loop("IDLE", true)
-		if base_texture != null:
-			character_sprite.sprite_frames.add_frame("IDLE", base_texture)
-	if animation_controller.current_state != CharacterAnimationState.State.INTERACT:
-		if character_sprite.sprite_frames.has_animation("IDLE") and character_sprite.sprite_frames.get_frame_count("IDLE") > 0:
-			character_sprite.play("IDLE")
-	character_sprite.visible = base_texture != null or _has_interact_animation()
+	animation_controller.set_state(CharacterAnimationState.State.IDLE, true)
+	character_sprite.visible = entity_type == "PLAYER" and animation_controller.has_state_animation(CharacterAnimationState.State.IDLE)
 	queue_redraw()
 
 func play_interact() -> void:
@@ -58,11 +48,6 @@ func play_interact() -> void:
 func set_facing_direction(value: int) -> void:
 	if animation_controller != null:
 		animation_controller.set_direction(value)
-
-func _has_interact_animation() -> bool:
-	if character_sprite == null or character_sprite.sprite_frames == null:
-		return false
-	return character_sprite.sprite_frames.has_animation("INTERACT_SOUTH")
 
 func _ensure_character_sprite() -> void:
 	if character_sprite != null:
