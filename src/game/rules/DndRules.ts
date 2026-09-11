@@ -7,17 +7,15 @@ import {
 export function getStrengthModifier(
   entity: Combatant
 ): number {
-  return getAbilityModifier(
-    entity.dnd.abilities.strength
-  );
+  const base = getAbilityModifier(entity.dnd.abilities.strength);
+  return base - (isFatigued(entity) ? 2 : 0);
 }
 
 export function getDexterityModifier(
   entity: Combatant
 ): number {
-  return getAbilityModifier(
-    entity.dnd.abilities.dexterity
-  );
+  const base = getAbilityModifier(entity.dnd.abilities.dexterity);
+  return base - (isFatigued(entity) ? 2 : 0);
 }
 
 export function getConstitutionModifier(
@@ -50,4 +48,8 @@ export function getCharismaModifier(
   return getAbilityModifier(
     entity.dnd.abilities.charisma
   );
+}
+
+export function isFatigued(entity: Combatant): boolean {
+  return entity.conditions?.some(condition => condition.type === "FATIGUED") ?? false;
 }
