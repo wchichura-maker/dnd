@@ -5,10 +5,30 @@ class_name PlayerController
 ## The authoritative movement decision comes from the Game Core transport.
 
 const TILE_SIZE: float = 48.0
+const PARTY_HUD_SCENE := preload("res://scenes/PartyHUD.tscn")
 
 var grid_position: Vector2i = Vector2i(3, 3)
 var is_moving: bool = false
 var can_receive_movement_input: bool = true
+
+func _ready() -> void:
+	call_deferred("_install_party_hud")
+
+func _install_party_hud() -> void:
+	var scene_root := get_tree().current_scene
+	if scene_root == null:
+		return
+	var old_combat_hud := scene_root.get_node_or_null("CombatHUD") as CanvasLayer
+	if old_combat_hud != null:
+		old_combat_hud.visible = false
+	var old_death_overlay := scene_root.get_node_or_null("DeathOverlay") as CanvasLayer
+	if old_death_overlay != null:
+		old_death_overlay.visible = false
+	if scene_root.get_node_or_null("PartyHUD") != null:
+		return
+	var hud := PARTY_HUD_SCENE.instantiate()
+	hud.name = "PartyHUD"
+	scene_root.add_child(hud)
 
 func set_alive(value: bool) -> void:
 	# Only transition the presentation when the life state actually changes.
