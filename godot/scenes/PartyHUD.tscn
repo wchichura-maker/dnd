@@ -1,13 +1,5 @@
 [gd_scene load_steps=9 format=3]
 
-[sub_resource type="StyleBoxFlat" id="SelectionStyle"]
-bg_color = Color(0, 0, 0, 0)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.85, 0.70, 0.35, 0.95)
-
 [ext_resource type="Script" path="res://scripts/PartyHUD.gd" id="1_hud"]
 [ext_resource type="Script" path="res://scripts/PartyPortrait.gd" id="2_portrait"]
 [ext_resource type="Script" path="res://scripts/ResourceBar.gd" id="3_bar"]
@@ -15,6 +7,14 @@ border_color = Color(0.85, 0.70, 0.35, 0.95)
 [ext_resource type="Texture2D" path="res://assets/ui/party_portrait/fighter_portrait.png" id="5_portrait"]
 [ext_resource type="Texture2D" path="res://assets/ui/party_portrait/hp_icon_16x16.png" id="6_hp"]
 [ext_resource type="Texture2D" path="res://assets/ui/party_portrait/food_icon_16x16.png" id="7_food"]
+
+[sub_resource type="StyleBoxFlat" id="SelectionStyle"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.85, 0.70, 0.35, 0.95)
 
 [node name="PartyHUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
