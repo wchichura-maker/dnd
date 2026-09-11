@@ -1,6 +1,10 @@
 extends Control
 class_name ResourceBar
 
+## Runtime resource bar.
+## The bar is drawn directly by this Control so no child layout, texture,
+## anchor, or z-order state can accidentally keep a full bar visible.
+
 @export var resource_type: String = "HP"
 @export var fill_color: Color = Color("a14a3d")
 @export var low_fill_color: Color = Color("8a3a33")
@@ -12,35 +16,17 @@ var current: float = 0.0
 var maximum: float = 0.0
 var displayed_ratio: float = 0.0
 var _tween: Tween
-var _background: ColorRect
-var _fill: ColorRect
 var _value_label: Label
+
+const BACKGROUND_COLOR := Color("201914")
+const BORDER_COLOR := Color("0b0908")
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	z_as_relative = true
 	z_index = 100
-
-	_background = ColorRect.new()
-	_background.name = "Background"
-	_background.position = Vector2.ZERO
-	_background.size = size
-	_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_background.z_index = 0
-	_background.color = Color("201914")
-	_background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	add_child(_background)
-
-	_fill = ColorRect.new()
-	_fill.name = "Fill"
-	_fill.position = Vector2.ZERO
-	_fill.size = size
-	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_fill.z_index = 1
-	_fill.color = fill_color
-	_fill.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	add_child(_fill)
+	clip_contents = true
 
 	_value_label = Label.new()
 	_value_label.name = "ValueLabel"
@@ -57,7 +43,7 @@ func _ready() -> void:
 	add_child(_value_label)
 
 	_update_label()
-	_apply_fill(displayed_ratio)
+	queue_redraw()
 
 func set_value(new_current: float, new_maximum: float) -> void:
 	current = new_current
@@ -70,33 +56,48 @@ func set_value(new_current: float, new_maximum: float) -> void:
 
 	if not is_node_ready() or not animate_changes:
 		displayed_ratio = target
-		_apply_fill(displayed_ratio)
+		queue_redraw()
 		return
 
 	_tween = create_tween()
 	_tween.set_trans(Tween.TRANS_QUAD)
 	_tween.set_ease(Tween.EASE_OUT)
 	_tween.tween_property(self, "displayed_ratio", target, animation_duration)
+	_tween.finished.connect(queue_redraw)
+	queue_redraw()
 
 func _process(_delta: float) -> void:
-	if _background != null:
-		_background.size = size
-	_apply_fill(displayed_ratio)
+	if animate_changes:
+		queue_redraw()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		queue_redraw()
 
 func _update_label() -> void:
 	if _value_label == null:
 		return
 	_value_label.text = "%d/%d" % [roundi(current), roundi(maximum)]
 
-func _apply_fill(ratio: float) -> void:
-	if _fill == null:
+func _draw() -> void:
+	var width := maxf(0.0, size.x)
+	var height := maxf(0.0, size.y)
+	if width <= 0.0 or height <= 0.0:
 		return
-	var clamped_ratio := clampf(ratio, 0.0, 1.0)
-	_fill.position = Vector2.ZERO
-	_fill.size = Vector2(size.x * clamped_ratio, size.y)
-	var active_color := fill_color
-	if clamped_ratio <= 0.25:
-		active_color = critical_fill_color
-	elif clamped_ratio <= 0.5:
-		active_color = low_fill_color
-	_fill.color = active_color
+
+	# Explicit empty/background region.
+	draw_rect(Rect2(Vector2.ZERO, Vector2(width, height)), BACKGROUND_COLOR, true)
+
+	var ratio := clampf(displayed_ratio, 0.0, 1.0)
+	if ratio > 0.0:
+		var fill_width := width * ratio
+		var active_color := fill_color
+		if ratio <= 0.25:
+			active_color = critical_fill_color
+		elif ratio <= 0.5:
+			active_color = low_fill_color
+		draw_rect(Rect2(Vector2.ZERO, Vector2(fill_width, height)), active_color, true)
+
+	# One-pixel border is drawn after the fill so the resource amount remains
+	# readable even when the value is near zero or full.
+	draw_rect(Rect2(Vector2.ZERO, Vector2(width, height)), BORDER_COLOR, false, 1.0)
