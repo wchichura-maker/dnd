@@ -15,20 +15,31 @@ func _ready() -> void:
 	add_child(http_request)
 	http_request.request_completed.connect(_on_request_completed)
 
-func request_state() -> void: _request("GET", "/state", {})
-func request_action(action: Dictionary) -> void: _request("POST", "/action", action)
-func end_turn() -> void: _request("POST", "/turn/end", {})
-func reset_game() -> void: _request("POST", "/reset", {})
-func respawn_player() -> void: _request("POST", "/player/respawn", {})
+func request_state() -> void:
+	_request("GET", "/state", {})
+
+func request_action(action: Dictionary) -> void:
+	_request("POST", "/action", action)
+
+func end_turn() -> void:
+	_request("POST", "/turn/end", {})
+
+func reset_game() -> void:
+	_request("POST", "/reset", {})
+
+func respawn_player() -> void:
+	_request("POST", "/player/respawn", {})
 
 func _request(method: String, path: String, payload: Dictionary) -> void:
-	if busy: return
+	if busy:
+		return
 	busy = true
 	var headers: PackedStringArray = ["Content-Type: application/json"]
-	var body := JSON.stringify(payload)
-	var http_method := HTTPClient.METHOD_GET
-	if method == "POST": http_method = HTTPClient.METHOD_POST
-	var error := http_request.request(BASE_URL + path, headers, http_method, body)
+	var body: String = JSON.stringify(payload)
+	var http_method: HTTPClient.Method = HTTPClient.METHOD_GET
+	if method == "POST":
+		http_method = HTTPClient.METHOD_POST
+	var error: Error = http_request.request(BASE_URL + path, headers, http_method, body)
 	if error != OK:
 		busy = false
 		transport_error.emit("Falha ao iniciar comunicação com o Game Core: %s" % error)
@@ -44,14 +55,11 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 		return
 	var payload: Dictionary = parsed
 	latest_snapshot = payload
-	var action_result: Dictionary = payload.get("actionResult", {}) as Dictionary
+	var action_result_variant: Variant = payload.get("actionResult", {})
+	var action_result: Dictionary = action_result_variant as Dictionary if action_result_variant is Dictionary else {}
 	if response_code < 200 or response_code >= 300:
-		var message := str(action_result.get("message", payload.get("message", "Ação rejeitada pelo Game Core.")))
+		var message: String = str(action_result.get("message", payload.get("message", "Ação rejeitada pelo Game Core.")))
 		transport_error.emit(message)
-		state_received.emit(payload)
-		return
-	if payload.has("actionResult"):
-		action_resolved.emit(action_result, payload)
 	state_received.emit(payload)
-	else:
-		state_received.emit(payload)
+	if response_code >= 200 and response_code < 300 and payload.has("actionResult"):
+		action_resolved.emit(action_result, payload)
