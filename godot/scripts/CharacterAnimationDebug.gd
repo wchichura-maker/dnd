@@ -1,7 +1,8 @@
 extends Node
 
-## Presentation bridge for validating and driving character animations.
-## F1-F8 select directions; I plays INTERACT; B plays BLOCK.
+## Presentation bridge for character animations.
+## F1-F8 select directions; I plays INTERACT.
+## BLOCK is triggered automatically when an enemy attack misses the player.
 
 const DIRECTION_KEYS := {
 	KEY_F1: CharacterAnimationState.Direction.SOUTH,
@@ -58,32 +59,39 @@ func _unhandled_input(event: InputEvent) -> void:
 			view.play_interact()
 		return
 
-	if key_event.keycode == KEY_B:
-		var view := _get_player_view()
-		if view != null and view.animation_controller != null:
-			view.animation_controller.play_state(CharacterAnimationState.State.BLOCK, false)
-		return
-
 	if DIRECTION_KEYS.has(key_event.keycode):
 		var direction: int = int(DIRECTION_KEYS[key_event.keycode])
 		var view := _get_player_view()
 		if view != null:
 			view.set_facing_direction(direction)
 
-func _on_action_resolved(action_result: Dictionary, _snapshot: Dictionary) -> void:
-	if not bool(action_result.get("success", false)) or connected_game_core == null:
+func _on_action_resolved(action_result: Dictionary, snapshot: Dictionary) -> void:
+	if not bool(action_result.get("success", false)):
 		return
-	var action := connected_game_core.last_requested_action
-	if str(action.get("actorId", "")) != "player-01":
+	var action := connected_game_core.last_requested_action if connected_game_core != null else {}
+	var action_actor_id := str(action.get("actorId", ""))
+
+	# The player's own successful attack is an ATTACK animation.
+	if action_actor_id == "player-01":
+		var player_view := _get_player_view()
+		if player_view == null or player_view.animation_controller == null:
+			return
+		if str(action.get("type", "")) in ["ATTACK", "COUP_DE_GRACE"]:
+			player_view.animation_controller.play_state(CharacterAnimationState.State.ATTACK, false)
 		return
-	var view := _get_player_view()
-	if view == null or view.animation_controller == null:
-		return
-	match str(action.get("type", "")):
-		"ATTACK", "COUP_DE_GRACE":
-			view.animation_controller.play_state(CharacterAnimationState.State.ATTACK, false)
-		"BLOCK":
-			view.animation_controller.play_state(CharacterAnimationState.State.BLOCK, false)
+
+	# Enemy attack results may contain an attack roll. A miss against the player
+	# is presented as BLOCK; a hit is handled by the HP transition below.
+	var data_variant: Variant = action_result.get("data", {})
+	if data_variant is Dictionary:
+		var data := data_variant as Dictionary
+		var attack_variant: Variant = data.get("attack", {})
+		if attack_variant is Dictionary:
+			var attack := attack_variant as Dictionary
+			if str(action.get("targetId", "")) == "player-01" and not bool(attack.get("hit", true)):
+				var view := _get_player_view()
+				if view != null and view.animation_controller != null:
+					view.animation_controller.play_state(CharacterAnimationState.State.BLOCK, false)
 
 func _on_state_received(snapshot: Dictionary) -> void:
 	var state_variant: Variant = snapshot.get("state", {})
@@ -101,7 +109,7 @@ func _on_state_received(snapshot: Dictionary) -> void:
 		if previous_hp.has(id) and hp < int(previous_hp[id]):
 			var view := _find_entity_view(id)
 			if view != null and view.animation_controller != null:
-				var state := CharacterAnimationState.State.DEATH if hp <= 0 else CharacterAnimationState.State.HIT
+				var state := CharacterAnimationState.State.DEATH if hp <= -10 else CharacterAnimationState.State.HIT
 				view.animation_controller.play_state(state, false)
 		previous_hp[id] = hp
 
