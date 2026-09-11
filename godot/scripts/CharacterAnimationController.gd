@@ -5,9 +5,6 @@ extends Node
 
 class_name CharacterAnimationController
 
-const SHEET_COLUMNS: int = 6
-const SHEET_ROWS: int = 8
-const IDLE_FPS: float = 6.0
 const INTERACT_FPS: float = 8.0
 const DIRECTION_COUNT: int = 8
 
@@ -28,14 +25,11 @@ func configure(sprite: AnimatedSprite2D) -> void:
 	animated_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if not animated_sprite.animation_finished.is_connected(_on_animation_finished):
 		animated_sprite.animation_finished.connect(_on_animation_finished)
-	_build_state_animations(CharacterAnimationState.State.IDLE)
-	_build_state_animations(CharacterAnimationState.State.INTERACT)
 	_play_current_animation(true)
 
 func set_entity_type(value: String) -> void:
 	entity_type = value
-	_build_state_animations(CharacterAnimationState.State.IDLE)
-	_build_state_animations(CharacterAnimationState.State.INTERACT)
+	_play_current_animation(true)
 
 func set_direction(value: int) -> void:
 	direction = clampi(value, 0, DIRECTION_COUNT - 1)
@@ -55,15 +49,24 @@ func play_interact() -> void:
 	_play_current_animation(false)
 
 func has_state_animation(state: int) -> bool:
-	return animated_sprite != null and animated_sprite.sprite_frames != null and animated_sprite.sprite_frames.has_animation(_animation_name(state))
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return false
+	return animated_sprite.sprite_frames.has_animation(_animation_name(state))
+
+func has_playable_animation() -> bool:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return false
+	return animated_sprite.sprite_frames.has_animation(_resolved_animation_name())
 
 func _play_current_animation(loop: bool) -> void:
 	if animated_sprite == null or animated_sprite.sprite_frames == null:
 		return
-	var animation_name: String = _animation_name(current_state)
-	if not animated_sprite.sprite_frames.has_animation(animation_name):
+	var animation_name: String = _resolved_animation_name()
+	if animation_name.is_empty():
 		return
 	animated_sprite.sprite_frames.set_animation_loop(animation_name, loop)
+	if current_state == CharacterAnimationState.State.INTERACT:
+		animated_sprite.sprite_frames.set_animation_speed(animation_name, INTERACT_FPS)
 	animated_sprite.play(animation_name)
 
 func _on_animation_finished() -> void:
@@ -76,42 +79,18 @@ func _on_animation_finished() -> void:
 	_play_current_animation(true)
 
 func _animation_name(state: int) -> String:
-	var state_name: String = CharacterAnimationState.State.keys()[state]
+	var state_names: Array = CharacterAnimationState.State.keys()
+	if state < 0 or state >= state_names.size():
+		return ""
+	var state_name: String = str(state_names[state])
 	return "%s_%s" % [state_name, direction_names[direction]]
 
-func _build_state_animations(state: int) -> void:
-	if animated_sprite == null or animated_sprite.sprite_frames == null:
-		return
-	var frames: SpriteFrames = animated_sprite.sprite_frames
-	var state_name: String = CharacterAnimationState.State.keys()[state]
-
-	# Manually configured SpriteFrames are authoritative for presentation.
-	# Once all eight directional animations exist, preserve them exactly as
-	# authored in the scene instead of rebuilding/removing their frames.
-	var all_directions_present := true
-	for row in range(DIRECTION_COUNT):
-		var animation_name: String = "%s_%s" % [state_name, direction_names[row]]
-		if not frames.has_animation(animation_name) or frames.get_frame_count(animation_name) == 0:
-			all_directions_present = false
-			break
-	if all_directions_present:
-		return
-
-	var sheet: Texture2D = AssetRegistry.animation_sheet(state, entity_type)
-	if sheet == null:
-		return
-	var fps: float = INTERACT_FPS if state == CharacterAnimationState.State.INTERACT else IDLE_FPS
-	var frame_width: float = float(sheet.get_width()) / float(SHEET_COLUMNS)
-	var frame_height: float = float(sheet.get_height()) / float(SHEET_ROWS)
-	for row in range(DIRECTION_COUNT):
-		var animation_name: String = "%s_%s" % [state_name, direction_names[row]]
-		if frames.has_animation(animation_name):
-			frames.remove_animation(animation_name)
-		frames.add_animation(animation_name)
-		frames.set_animation_loop(animation_name, state != CharacterAnimationState.State.INTERACT)
-		frames.set_animation_speed(animation_name, fps)
-		for column in range(SHEET_COLUMNS):
-			var atlas: AtlasTexture = AtlasTexture.new()
-			atlas.atlas = sheet
-			atlas.region = Rect2(column * frame_width, row * frame_height, frame_width, frame_height)
-			frames.add_frame(animation_name, atlas)
+func _resolved_animation_name() -> String:
+	var desired: String = _animation_name(current_state)
+	if animated_sprite != null and animated_sprite.sprite_frames != null and animated_sprite.sprite_frames.has_animation(desired):
+		return desired
+	# Temporary presentation fallback until the remaining state sheets are installed.
+	var fallback: String = _animation_name(CharacterAnimationState.State.INTERACT)
+	if animated_sprite != null and animated_sprite.sprite_frames != null and animated_sprite.sprite_frames.has_animation(fallback):
+		return fallback
+	return ""
