@@ -8,11 +8,6 @@ var portrait: PartyPortrait
 var game_core: Node
 var latest_state: Dictionary = {}
 var selected_character_id: String = PLAYER_ID
-var last_synced_hp: float = INF
-var last_synced_food: float = INF
-var last_synced_max_hp: float = INF
-var last_synced_max_food: float = INF
-var last_synced_active_id: String = "__UNSET__"
 
 func _ready() -> void:
 	layer = 20
@@ -30,13 +25,7 @@ func _process(_delta: float) -> void:
 	var cached_snapshot := cached_variant as Dictionary
 	if cached_snapshot.is_empty():
 		return
-	var state_variant: Variant = cached_snapshot.get("state", {})
-	if not state_variant is Dictionary:
-		return
-	if cached_snapshot != _last_snapshot:
-		_on_state_received(cached_snapshot)
-
-var _last_snapshot: Dictionary = {}
+	_on_state_received(cached_snapshot)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not event is InputEventKey:
@@ -97,9 +86,6 @@ func _on_state_received(snapshot: Dictionary) -> void:
 	var state_variant: Variant = snapshot.get("state", {})
 	if not state_variant is Dictionary:
 		return
-	if snapshot == _last_snapshot:
-		return
-	_last_snapshot = snapshot.duplicate(true)
 	latest_state = state_variant as Dictionary
 	_apply_player_data()
 
@@ -128,14 +114,6 @@ func _apply_player_data() -> void:
 	var max_hp := float(player_entity.get("maxHp", 0))
 	var current_food := float(player_entity.get("food", 0))
 	var max_food := float(player_entity.get("maxFood", 0))
-	if is_equal_approx(current_hp, last_synced_hp) and is_equal_approx(max_hp, last_synced_max_hp) and is_equal_approx(current_food, last_synced_food) and is_equal_approx(max_food, last_synced_max_food) and active_id == last_synced_active_id:
-		return
-
-	last_synced_hp = current_hp
-	last_synced_max_hp = max_hp
-	last_synced_food = current_food
-	last_synced_max_food = max_food
-	last_synced_active_id = active_id
 	portrait.apply_data({
 		"characterId": PLAYER_ID,
 		"level": level,
