@@ -2,8 +2,8 @@ extends Control
 class_name ResourceBar
 
 ## Runtime resource bar.
-## Uses the same proven ratio logic as the former overhead HP bar, but renders
-## the fill as a real Control child at the HUD position.
+## Uses the same proven ratio logic and dimensions as the former overhead HP bar,
+## now rendered at the PartyPortrait HUD position.
 
 @export var resource_type: String = "HP"
 @export var fill_color: Color = Color("65704d")
@@ -16,7 +16,11 @@ var _background: ColorRect
 var _fill: ColorRect
 var _value_label: Label
 
-const BACKGROUND_COLOR := Color("30261e")
+const BAR_WIDTH := 42.0
+const BAR_HEIGHT := 5.0
+const BACKGROUND_COLOR := Color("7f1d1d")
+const HP_RED := Color("d92f2f")
+const HP_TEXT := Color("ff5a5a")
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -27,7 +31,7 @@ func _ready() -> void:
 
 	_background = ColorRect.new()
 	_background.name = "Background"
-	_background.color = BACKGROUND_COLOR
+	_background.color = BACKGROUND_COLOR if resource_type == "HP" else Color("30261e")
 	_background.position = Vector2.ZERO
 	_background.size = size
 	_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -37,7 +41,7 @@ func _ready() -> void:
 
 	_fill = ColorRect.new()
 	_fill.name = "Fill"
-	_fill.color = fill_color
+	_fill.color = HP_RED if resource_type == "HP" else fill_color
 	_fill.position = Vector2.ZERO
 	_fill.size = Vector2(0.0, size.y)
 	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -55,7 +59,7 @@ func _ready() -> void:
 	_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_value_label.add_theme_font_size_override("font_size", 7)
-	_value_label.add_theme_color_override("font_color", Color.WHITE)
+	_value_label.add_theme_color_override("font_color", HP_TEXT if resource_type == "HP" else Color.WHITE)
 	_value_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
 	_value_label.add_theme_constant_override("shadow_offset_x", 1)
 	_value_label.add_theme_constant_override("shadow_offset_y", 1)
@@ -89,11 +93,13 @@ func _apply_ratio() -> void:
 	if _fill == null:
 		return
 
-	# Same proven ratio calculation used by the old overhead HP bar.
+	# Exact proven calculation used by the former overhead HP bar.
 	var ratio := clampf(current / maximum, 0.0, 1.0) if maximum > 0.0 else 0.0
 	_fill.size = Vector2(size.x * ratio, size.y)
 
-	if ratio <= 0.25:
+	if resource_type == "HP":
+		_fill.color = HP_RED
+	elif ratio <= 0.25:
 		_fill.color = critical_fill_color
 	elif ratio <= 0.5:
 		_fill.color = low_fill_color
