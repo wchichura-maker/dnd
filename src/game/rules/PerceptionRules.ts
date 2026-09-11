@@ -29,29 +29,36 @@ function hasLineOfSight(map: GameMap, from: Point, to: Point): boolean {
 
   let x = from.x;
   let y = from.y;
-  let ix = 0;
-  let iy = 0;
+  let tMaxX = absDx === 0 ? Number.POSITIVE_INFINITY : 0.5 / absDx;
+  let tMaxY = absDy === 0 ? Number.POSITIVE_INFINITY : 0.5 / absDy;
+  const tDeltaX = absDx === 0 ? Number.POSITIVE_INFINITY : 1 / absDx;
+  const tDeltaY = absDy === 0 ? Number.POSITIVE_INFINITY : 1 / absDy;
 
-  while (ix < absDx || iy < absDy) {
-    const tx = (ix + 0.5) / Math.max(1, absDx);
-    const ty = (iy + 0.5) / Math.max(1, absDy);
-
-    if (absDx === 0 || (absDy !== 0 && tx > ty)) {
+  while (x !== to.x || y !== to.y) {
+    if (tMaxX < tMaxY) {
       x += stepX;
-      ix += 1;
-    } else if (absDy === 0 || tx < ty) {
-      y += stepY;
-      iy += 1;
-    } else {
-      const nextX = x + stepX;
-      const nextY = y + stepY;
-      if (blocksVision(map, nextX, y) || blocksVision(map, x, nextY)) return false;
-      x = nextX;
-      y = nextY;
-      ix += 1;
-      iy += 1;
+      tMaxX += tDeltaX;
+      if (x === to.x && y === to.y) break;
+      if (blocksVision(map, x, y)) return false;
+      continue;
     }
 
+    if (tMaxY < tMaxX) {
+      y += stepY;
+      tMaxY += tDeltaY;
+      if (x === to.x && y === to.y) break;
+      if (blocksVision(map, x, y)) return false;
+      continue;
+    }
+
+    const nextX = x + stepX;
+    const nextY = y + stepY;
+    if (blocksVision(map, nextX, y) || blocksVision(map, x, nextY)) return false;
+
+    x = nextX;
+    y = nextY;
+    tMaxX += tDeltaX;
+    tMaxY += tDeltaY;
     if (x === to.x && y === to.y) break;
     if (blocksVision(map, x, y)) return false;
   }
