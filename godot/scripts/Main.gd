@@ -36,6 +36,7 @@ func _ready() -> void:
 	game_core.state_received.connect(_on_core_state_received)
 	game_core.action_resolved.connect(_on_action_resolved)
 	game_core.transport_error.connect(_on_transport_error)
+	get_viewport().size_changed.connect(_layout_hud)
 	entity_nodes[PLAYER_ID] = player
 	$CombatHUD/Panel/Margin/VBox/Attack.pressed.connect(_on_attack)
 	$CombatHUD/Panel/Margin/VBox/CoupDeGrace.pressed.connect(_on_coup_de_grace)
@@ -44,6 +45,7 @@ func _ready() -> void:
 	$DeathOverlay/Center/VBox/NewCharacter.pressed.connect(_on_new_character)
 	_setup_initiative_panel()
 	_setup_hotbar()
+	_layout_hud()
 	$DeathOverlay.visible = false
 	_set_debug_status("Game Core: conectando...")
 	game_core.request_state()
@@ -76,6 +78,25 @@ func _setup_initiative_panel() -> void:
 	initiative_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	initiative_label.text = "INICIATIVA  •  —"
 	margin.add_child(initiative_label)
+
+func _layout_hud() -> void:
+	var viewport_size := get_viewport_rect().size
+	var bottom := viewport_size.y - 10.0
+	var action_log := $CombatHUD/ActionLogPanel as Control
+	var hotbar := $CombatHUD/Hotbar as Control
+	var menu := $CombatHUD/MenuPanel as Control
+	var bottom_height := 170.0
+	var hotbar_width := 560.0
+	var menu_width := 222.0
+	action_log.position = Vector2(18.0, bottom - bottom_height)
+	action_log.size = Vector2(412.0, bottom_height)
+	hotbar.position = Vector2(maxf(18.0, (viewport_size.x - hotbar_width) * 0.5), bottom - 64.0)
+	hotbar.size = Vector2(minf(hotbar_width, maxf(360.0, viewport_size.x - 36.0)), 64.0)
+	menu.position = Vector2(maxf(18.0, viewport_size.x - menu_width - 18.0), bottom - bottom_height)
+	menu.size = Vector2(minf(menu_width, maxf(190.0, viewport_size.x - 36.0)), bottom_height)
+	if initiative_panel != null:
+		initiative_panel.position = Vector2(maxf(18.0, (viewport_size.x - 560.0) * 0.5), 18.0)
+		initiative_panel.size = Vector2(minf(560.0, maxf(360.0, viewport_size.x - 36.0)), 54.0)
 
 func _setup_hotbar() -> void:
 	var slots := $CombatHUD/Hotbar/Margin/Slots
@@ -387,9 +408,23 @@ func _set_debug_status(text: String) -> void:
 	$DebugOverlay/Label.text = text
 
 func _draw() -> void:
+	# Keep the logical map large, but only submit the tiles that can actually
+	# enter the current camera viewport. Godot caches _draw() until queue_redraw,
+	# so camera motion reuses this command list instead of rebuilding it every frame.
 	draw_rect(Rect2(Vector2.ZERO, Vector2(map_size) * TILE_SIZE), Color("151515"))
-	for y in range(map_size.y):
-		for x in range(map_size.x):
+	var camera := $Player/Camera2D as Camera2D
+	if camera == null:
+		return
+	var viewport_size := get_viewport_rect().size / camera.zoom
+	var screen_center := camera.get_screen_center_position()
+	var half_view := viewport_size * 0.5
+	var visible_rect := Rect2(screen_center - half_view, viewport_size)
+	var min_x := maxi(0, floori(visible_rect.position.x / TILE_SIZE) - 1)
+	var min_y := maxi(0, floori(visible_rect.position.y / TILE_SIZE) - 1)
+	var max_x := mini(map_size.x - 1, ceili(visible_rect.end.x / TILE_SIZE) + 1)
+	var max_y := mini(map_size.y - 1, ceili(visible_rect.end.y / TILE_SIZE) + 1)
+	for y in range(min_y, max_y + 1):
+		for x in range(min_x, max_x + 1):
 			var tile := Vector2i(x, y)
 			var rect := Rect2(Vector2(tile) * TILE_SIZE, Vector2.ONE * TILE_SIZE)
 			var walkable := not blocked_tiles.has(tile)
