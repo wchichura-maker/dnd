@@ -32,9 +32,12 @@ func _install_huds() -> void:
 		scene_root.add_child(party_hud)
 
 	if scene_root.get_node_or_null("LocationCompassHUD") == null:
-		var location_hud := LOCATION_COMPASS_HUD_SCENE.instantiate()
+		var location_hud := LOCATION_COMPASS_HUD_SCENE.instantiate() as LocationCompassHUD
 		location_hud.name = "LocationCompassHUD"
 		scene_root.add_child(location_hud)
+		var game_core := scene_root.find_child("GameCoreClient", true, false)
+		if game_core != null:
+			location_hud.configure(game_core)
 
 func set_alive(value: bool) -> void:
 	# Only transition the presentation when the life state actually changes.
