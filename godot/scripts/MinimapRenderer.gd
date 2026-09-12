@@ -15,7 +15,6 @@ const WALKABLE_COLOR := Color("6d694f")
 const BLOCKED_COLOR := Color("3b3028")
 const PLAYER_COLOR := Color("e3c46b")
 const MARKER_OUTLINE := Color("2a211b")
-const TILE_SIZE: float = 48.0
 
 var latest_state: Dictionary = {}
 var visible_tiles: Dictionary[Vector2i, bool] = {}
@@ -50,7 +49,7 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 	queue_redraw()
 
 func _read_perception(snapshot: Dictionary, key: String) -> Dictionary:
-	var result: Dictionary[Vector2i, bool] = {}
+	var result: Dictionary = {}
 	var presentation_variant: Variant = snapshot.get("presentation", {})
 	if not presentation_variant is Dictionary:
 		return result
@@ -93,12 +92,10 @@ func _read_player_direction() -> int:
 func _apply_circular_clip() -> void:
 	var shader := Shader.new()
 	shader.code = "shader_type canvas_item;\nrender_mode unshaded;\nvoid fragment() { vec2 p = UV - vec2(0.5); if (length(p) > 0.5) { discard; } COLOR = COLOR; }"
-	var material := ShaderMaterial.new()
-	material.shader = shader
-	material.resource_name = "MinimapCircularClip"
-	material_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	material = material
-	self.material = material
+	var shader_material := ShaderMaterial.new()
+	shader_material.shader = shader
+	shader_material.resource_name = "MinimapCircularClip"
+	self.material = shader_material
 
 func _draw() -> void:
 	var center := size * 0.5
