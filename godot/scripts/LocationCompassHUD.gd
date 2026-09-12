@@ -89,8 +89,7 @@ func _world_seconds(state: Dictionary) -> int:
 	return maxi(0, int((clock_variant as Dictionary).get("totalSeconds", 0)))
 
 func _format_world_time(total_seconds: int) -> String:
-	var seconds_in_day := WorldCoordinateSystem.DAY_SECONDS if "DAY_SECONDS" in WorldCoordinateSystem else 86400
-	var normalized := posmod(total_seconds, seconds_in_day)
+	var normalized := posmod(total_seconds, WorldCoordinateSystem.DAY_SECONDS)
 	var hour := normalized / 3600
 	var minute := (normalized % 3600) / 60
 	return "%02d:%02d" % [hour, minute]
