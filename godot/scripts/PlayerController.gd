@@ -15,6 +15,9 @@ var can_receive_movement_input: bool = true
 func _ready() -> void:
 	call_deferred("_install_huds")
 
+func _process(_delta: float) -> void:
+	_bind_location_hud_if_ready()
+
 func _install_huds() -> void:
 	var scene_root := get_tree().current_scene
 	if scene_root == null:
@@ -35,9 +38,20 @@ func _install_huds() -> void:
 		var location_hud := LOCATION_COMPASS_HUD_SCENE.instantiate() as LocationCompassHUD
 		location_hud.name = "LocationCompassHUD"
 		scene_root.add_child(location_hud)
-		var game_core := scene_root.find_child("GameCoreClient", true, false)
-		if game_core != null:
-			location_hud.configure(game_core)
+
+	_bind_location_hud_if_ready()
+
+func _bind_location_hud_if_ready() -> void:
+	var scene_root := get_tree().current_scene
+	if scene_root == null:
+		return
+	var location_hud := scene_root.get_node_or_null("LocationCompassHUD") as LocationCompassHUD
+	if location_hud == null:
+		return
+	var game_core := scene_root.find_child("GameCoreClient", true, false)
+	if game_core == null:
+		return
+	location_hud.configure(game_core)
 
 func set_alive(value: bool) -> void:
 	# Only transition the presentation when the life state actually changes.
