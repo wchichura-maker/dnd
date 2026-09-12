@@ -6,6 +6,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/quest_tracker/quest_log_open.svg" id="4_open"]
 
 [node name="QuestTracker" type="Control"]
+visible = false
 custom_minimum_size = Vector2(490, 800)
 offset_right = 490.0
 offset_bottom = 800.0
@@ -220,5 +221,5 @@ offset_right = 285.0
 offset_bottom = 405.0
 mouse_default_cursor_shape = 2
 focus_mode = 0
-text = "MISSÕES"
 flat = true
+text = "MISSÕES"
