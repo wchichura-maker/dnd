@@ -9,6 +9,7 @@ import type { RelationshipEvent } from "../relationships/RelationshipEvent";
 
 import type { GameMode } from "./GameMode";
 import type { WorldClockState } from "../time/WorldClock";
+import type { QuestState } from "../quests/QuestState";
 
 export type HungerState = {
   lastFoodAtSeconds: number;
@@ -27,5 +28,6 @@ export type GameState = {
   turn: Turn;
   worldClock: WorldClockState;
   hunger: Record<string, HungerState>;
+  quests: QuestState;
   logs: string[];
 };
