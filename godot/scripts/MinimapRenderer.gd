@@ -21,12 +21,10 @@ var visible_tiles: Dictionary[Vector2i, bool] = {}
 var explored_tiles: Dictionary[Vector2i, bool] = {}
 var player_grid: Vector2i = Vector2i.ZERO
 var player_direction: int = CharacterAnimationState.Direction.SOUTH
-var _last_render_key := ""
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_apply_circular_clip()
 	queue_redraw()
 
 func apply_snapshot(snapshot: Dictionary) -> void:
@@ -34,18 +32,10 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 	if not state_variant is Dictionary:
 		return
 	latest_state = state_variant as Dictionary
-	var next_player := _find_player_position(latest_state)
-	var next_visible := _read_perception(snapshot, "visibleTiles")
-	var next_explored := _read_perception(snapshot, "exploredTiles")
-	var next_direction := _read_player_direction()
-	var render_key := "%s|%s|%s|%s" % [next_player, next_visible.size(), next_explored.size(), next_direction]
-	if render_key == _last_render_key:
-		return
-	_last_render_key = render_key
-	player_grid = next_player
-	visible_tiles = next_visible
-	explored_tiles = next_explored
-	player_direction = next_direction
+	player_grid = _find_player_position(latest_state)
+	visible_tiles = _read_perception(snapshot, "visibleTiles")
+	explored_tiles = _read_perception(snapshot, "exploredTiles")
+	player_direction = _read_player_direction()
 	queue_redraw()
 
 func _read_perception(snapshot: Dictionary, key: String) -> Dictionary:
@@ -89,19 +79,11 @@ func _read_player_direction() -> int:
 			return controller.direction
 	return CharacterAnimationState.Direction.SOUTH
 
-func _apply_circular_clip() -> void:
-	var shader := Shader.new()
-	shader.code = "shader_type canvas_item;\nrender_mode unshaded;\nvoid fragment() { vec2 p = UV - vec2(0.5); if (length(p) > 0.5) { discard; } COLOR = COLOR; }"
-	var shader_material := ShaderMaterial.new()
-	shader_material.shader = shader
-	shader_material.resource_name = "MinimapCircularClip"
-	self.material = shader_material
-
 func _draw() -> void:
 	var center := size * 0.5
 	var map_radius := minf(size.x, size.y) * 0.5
 	var world_map_variant: Variant = latest_state.get("map", {})
-	var world_map := world_map_variant as Dictionary if world_map_variant is Dictionary else {}
+	var world_map: Dictionary = world_map_variant as Dictionary if world_map_variant is Dictionary else {}
 	var map_width := int(world_map.get("width", 0))
 	var map_height := int(world_map.get("height", 0))
 	var min_x := maxi(0, player_grid.x - radius_cells)
@@ -110,6 +92,8 @@ func _draw() -> void:
 	var max_y := mini(map_height - 1, player_grid.y + radius_cells)
 	var cell := pixels_per_cell
 
+	# Keep the map itself circular without a shader so custom _draw() primitives
+	# remain visible on all Godot renderers.
 	draw_circle(center, map_radius, UNKNOWN_COLOR)
 
 	for y in range(min_y, max_y + 1):
@@ -134,7 +118,10 @@ func _tile_color(grid: Vector2i) -> Color:
 	return EXPLORED_COLOR
 
 func _get_tile(grid: Vector2i) -> Dictionary:
-	var map := latest_state.get("map", {}) as Dictionary
+	var map_variant: Variant = latest_state.get("map", {})
+	if not map_variant is Dictionary:
+		return {}
+	var map := map_variant as Dictionary
 	var rows_variant: Variant = map.get("tiles", [])
 	if not rows_variant is Array:
 		return {}
