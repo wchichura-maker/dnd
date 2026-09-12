@@ -2,6 +2,7 @@ extends Node2D
 
 const TILE_SIZE: float = 48.0
 const PLAYER_ID: String = "player-01"
+const LOCATION_COMPASS_HUD_SCENE := preload("res://scenes/LocationCompassHUD.tscn")
 var map_size: Vector2i = Vector2i(120, 80)
 var blocked_tiles: Dictionary[Vector2i, bool] = {}
 var adapter: GameEntityAdapter
@@ -33,6 +34,7 @@ func _ready() -> void:
 	movement_controller = $GridMovementController as GridMovementController
 	game_core = GameCoreClient.new()
 	add_child(game_core)
+	_install_location_compass_hud()
 	movement_controller.configure(player, game_core)
 	game_core.state_received.connect(_on_core_state_received)
 	game_core.action_resolved.connect(_on_action_resolved)
@@ -50,6 +52,14 @@ func _ready() -> void:
 	$DeathOverlay.visible = false
 	_set_debug_status("Game Core: conectando...")
 	game_core.request_state()
+
+func _install_location_compass_hud() -> void:
+	var location_hud := get_node_or_null("LocationCompassHUD") as LocationCompassHUD
+	if location_hud == null:
+		location_hud = LOCATION_COMPASS_HUD_SCENE.instantiate() as LocationCompassHUD
+		location_hud.name = "LocationCompassHUD"
+		add_child(location_hud)
+	location_hud.configure(game_core)
 
 func _process(_delta: float) -> void:
 	var camera := $Player/Camera2D as Camera2D
@@ -289,96 +299,57 @@ func _update_party_panel(state: Dictionary, active_id: String) -> void:
 func _update_initiative_panel(combat: Dictionary, state: Dictionary, mode: String) -> void:
 	if initiative_panel == null: return
 	initiative_panel.visible = mode == "INITIATIVE" or mode == "COMBAT"
-	if not initiative_panel.visible: return
-	var order := combat.get("turnOrder", []) as Array
+	if not initiative_panel.visible:
+		return
+	var turn_order := combat.get("turnOrder", []) as Array
 	var current_index := int(combat.get("currentTurnIndex", 0))
-	var parts: Array[String] = []
-	for index in range(order.size()):
-		var id := str(order[index])
-		var name := id
+	var entries: Array[String] = []
+	for index in range(turn_order.size()):
+		var entity_id := str(turn_order[index])
+		var name := entity_id
 		for entity_variant in state.get("entities", []) as Array:
-			if entity_variant is Dictionary and str((entity_variant as Dictionary).get("id", "")) == id:
-				name = str((entity_variant as Dictionary).get("name", id))
+			if entity_variant is Dictionary and str((entity_variant as Dictionary).get("id", "")) == entity_id:
+				name = str((entity_variant as Dictionary).get("name", entity_id))
 				break
-		parts.append(("> " if index == current_index else "") + name)
-	initiative_label.text = "INICIATIVA  •  " + "  |  ".join(parts)
+			entries.append("[%s]%s" % ["*" if index == current_index else " ", name])
+	initiative_label.text = "INICIATIVA  •  " + "  ".join(entries)
 
 func _update_hotbar(mode: String, active_id: String) -> void:
 	var slots := $CombatHUD/Hotbar/Margin/Slots
-	var can_act := mode == "COMBAT" and active_id == PLAYER_ID
-	var attack_slot: Button = slots.get_node("Slot1")
-	var coup_slot: Button = slots.get_node("Slot2")
-	var end_slot: Button = slots.get_node("Slot10")
-	attack_slot.text = "1\nATAQUE"
-	coup_slot.text = "2\nCOUP"
-	end_slot.text = "0\nFIM"
-	attack_slot.disabled = not can_act or selected_target_id.is_empty()
-	coup_slot.disabled = not can_act or not _is_selected_target_helpless()
-	end_slot.disabled = not can_act
-
-func _update_attack_button() -> void:
-	var combat := latest_state.get("combat", {}) as Dictionary
-	var turn_order := combat.get("turnOrder", []) as Array
-	var current_index := int(combat.get("currentTurnIndex", 0))
-	var active_id := str(turn_order[current_index]) if current_index >= 0 and current_index < turn_order.size() else ""
-	$CombatHUD/Panel/Margin/VBox/Attack.disabled = str(latest_state.get("mode", "EXPLORATION")) != "COMBAT" or active_id != PLAYER_ID or selected_target_id.is_empty()
+	var enabled := mode == "COMBAT" and active_id == PLAYER_ID
+	for child in slots.get_children():
+		if child is Button: (child as Button).disabled = not enabled
 
 func _update_action_log() -> void:
-	var label: Label = $CombatHUD/ActionLogPanel/Margin/VBox/ActionLog
 	var lines: Array[String] = []
-	var start_index := maxi(0, latest_action_log.size() - 5)
-	for index in range(start_index, latest_action_log.size()):
-		var entry_variant: Variant = latest_action_log[index]
+	for entry_variant in latest_action_log.slice(maxi(0, latest_action_log.size() - 8), latest_action_log.size()):
 		if not entry_variant is Dictionary: continue
 		var entry := entry_variant as Dictionary
 		var source := str(entry.get("source", "SYSTEM"))
-		var action_type := str(entry.get("type", ""))
-		var success := bool(entry.get("success", false))
 		var message := str(entry.get("message", ""))
-		var detail_lines: Array[String] = []
-		var data_variant: Variant = entry.get("data", {})
-		if data_variant is Dictionary:
-			var data := data_variant as Dictionary
-			if data.has("attack"):
-				var attack := data.get("attack", {}) as Dictionary
-				detail_lines.append("d20 %s + %s = %s | %s | D %s" % [str(attack.get("roll", "?")), str(attack.get("attackBonus", "?")), str(attack.get("total", "?")), "CRÍTICO" if bool(attack.get("critical", false)) else ("ACERTO" if bool(attack.get("hit", false)) else "ERRO"), str(attack.get("damage", 0))])
-			if data.has("opportunityAttacks") and data.get("opportunityAttacks") is Array:
-				for a_variant in data.get("opportunityAttacks", []) as Array:
-					if a_variant is Dictionary:
-						var a := a_variant as Dictionary
-						detail_lines.append("AO d20 %s + %s = %s | D %s" % [str(a.get("roll", "?")), str(a.get("attackBonus", "?")), str(a.get("total", "?")), str(a.get("damage", 0))])
-			if data.has("fortitudeRoll"): detail_lines.append("Fortitude d20 %s" % str(data.get("fortitudeRoll", "?")))
-		var log_messages_variant: Variant = entry.get("logMessages", [])
-		if log_messages_variant is Array:
-			for log_message in log_messages_variant as Array:
-				var text := str(log_message)
-				if text.contains("teste de estabilização") or text.contains("ESTABILIZADO") or text.contains("falhou"): detail_lines.append(text)
-		lines.append("%s %s\n%s%s" % ["OK" if success else "ERRO", action_type, message, ("\n" + "\n".join(detail_lines)) if not detail_lines.is_empty() else ""])
-	label.text = ("\n".join(lines) if not lines.is_empty() else "Nenhuma ação registrada.")
+		if message.is_empty(): continue
+		lines.append("[%s] %s" % [source, message])
+	$CombatHUD/ActionLogPanel/Margin/VBox/ActionLog.text = "\n".join(lines) if not lines.is_empty() else "Nenhuma ação registrada."
 
-func _is_selected_target_helpless() -> bool:
-	if selected_target_id.is_empty(): return false
-	for entity_variant in latest_state.get("entities", []) as Array:
-		if not entity_variant is Dictionary: continue
-		var entity := entity_variant as Dictionary
-		if str(entity.get("id", "")) != selected_target_id: continue
-		var hp := int(entity.get("hp", 0))
-		if hp < 0: return true
-		var conditions_variant: Variant = entity.get("conditions", [])
-		if conditions_variant is Array:
-			for condition_variant in conditions_variant as Array:
-				var condition := str(condition_variant).to_upper()
-				if condition in ["UNCONSCIOUS", "PARALYZED", "PETRIFIED", "HELPLESS"]: return true
-		return false
-	return false
-
+func _update_attack_button() -> void:
+	var button: Button = $CombatHUD/Panel/Margin/VBox/Attack
+	button.disabled = selected_target_id.is_empty() or not _is_player_active()
 func _update_coup_de_grace_button() -> void:
 	var button: Button = $CombatHUD/Panel/Margin/VBox/CoupDeGrace
+	button.disabled = selected_target_id.is_empty() or not _is_player_active() or not _is_selected_target_helpless()
+func _is_player_active() -> bool:
 	var combat := latest_state.get("combat", {}) as Dictionary
 	var turn_order := combat.get("turnOrder", []) as Array
-	var current_index := int(combat.get("currentTurnIndex", 0))
-	var active_id := str(turn_order[current_index]) if current_index >= 0 and current_index < turn_order.size() else ""
-	button.disabled = str(latest_state.get("mode", "EXPLORATION")) != "COMBAT" or active_id != PLAYER_ID or not _is_selected_target_helpless()
+	var index := int(combat.get("currentTurnIndex", 0))
+	return index >= 0 and index < turn_order.size() and str(turn_order[index]) == PLAYER_ID
+func _is_selected_target_helpless() -> bool:
+	if selected_target_id.is_empty(): return false
+	var node := entity_nodes.get(selected_target_id) as Node2D
+	var view := node.get_node_or_null("EntityView") as EntityView if is_instance_valid(node) else null
+	return view != null and view.hp <= 0
+
+func _set_debug_status(message: String) -> void:
+	$CombatHUD/Panel/Margin/VBox/Status.text = message
 
 func _update_death_screen(state: Dictionary) -> void:
 	var player_entity: Dictionary = {}
@@ -390,55 +361,41 @@ func _update_death_screen(state: Dictionary) -> void:
 	if dead and not death_screen_shown:
 		death_screen_shown = true
 		$DeathOverlay.visible = true
-		$DeathOverlay/Center/VBox/Message.modulate.a = 0.0
-		var tween := create_tween()
-		tween.tween_property($DeathOverlay/Center/VBox/Message, "modulate:a", 1.0, 2.5)
 	elif not dead and death_screen_shown:
 		death_screen_shown = false
 		$DeathOverlay.visible = false
 
 func _on_spectator() -> void:
-	death_screen_shown = false
 	$DeathOverlay.visible = false
-	_set_debug_status("Modo espectador: o mundo continua normalmente.")
-
 func _on_new_character() -> void:
-	game_core.respawn_player()
 	death_screen_shown = false
 	$DeathOverlay.visible = false
-
-func _grid_to_world(grid_position: Vector2i) -> Vector2:
-	return Vector2(grid_position) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
+	game_core.respawn_player()
 
 func _on_transport_error(message: String) -> void:
-	_set_debug_status("Game Core: erro\n%s" % message)
-	push_error(message)
+	_set_debug_status(message)
 
-func _set_debug_status(text: String) -> void:
-	$DebugOverlay/Label.text = text
+func _grid_to_world(grid: Vector2i) -> Vector2:
+	return Vector2(grid) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
 
 func _draw() -> void:
-	# Only submit terrain cells that intersect the current camera viewport.
-	# The draw command list is cached by Godot until queue_redraw() is requested.
-	draw_rect(Rect2(Vector2.ZERO, Vector2(map_size) * TILE_SIZE), Color("151515"))
 	var camera := $Player/Camera2D as Camera2D
-	if camera == null:
-		return
-	var viewport_size := get_viewport_rect().size / camera.zoom
-	var screen_center := camera.get_screen_center_position()
-	var half_view := viewport_size * 0.5
-	var visible_rect := Rect2(screen_center - half_view, viewport_size)
-	var min_x := maxi(0, floori(visible_rect.position.x / TILE_SIZE) - 1)
-	var min_y := maxi(0, floori(visible_rect.position.y / TILE_SIZE) - 1)
-	var max_x := mini(map_size.x - 1, ceili(visible_rect.end.x / TILE_SIZE) + 1)
-	var max_y := mini(map_size.y - 1, ceili(visible_rect.end.y / TILE_SIZE) + 1)
-	for y in range(min_y, max_y + 1):
-		for x in range(min_x, max_x + 1):
+	if camera == null: return
+	var center := camera.get_screen_center_position()
+	var half := camera.get_viewport_rect().size * 0.5 / camera.zoom
+	var top_left := center - half
+	var bottom_right := center + half
+	var start_x := maxi(0, floori(top_left.x / TILE_SIZE) - 1)
+	var end_x := mini(map_size.x - 1, ceili(bottom_right.x / TILE_SIZE) + 1)
+	var start_y := maxi(0, floori(top_left.y / TILE_SIZE) - 1)
+	var end_y := mini(map_size.y - 1, ceili(bottom_right.y / TILE_SIZE) + 1)
+	for y in range(start_y, end_y + 1):
+		for x in range(start_x, end_x + 1):
 			var tile := Vector2i(x, y)
-			var rect := Rect2(Vector2(tile) * TILE_SIZE, Vector2.ONE * TILE_SIZE)
-			var walkable := not blocked_tiles.has(tile)
-			draw_rect(rect, Color("292b2d") if walkable else Color("111214"))
-			draw_rect(rect, Color("3b3d40"), false, 1.0)
-			if not walkable:
-				draw_line(rect.position + Vector2(8, 8), rect.end - Vector2(8, 8), Color("45474a"), 2.0)
-				draw_line(Vector2(rect.end.x - 8, rect.position.y + 8), Vector2(rect.position.x + 8, rect.end.y - 8), Color("45474a"), 2.0)
+			if blocked_tiles.has(tile):
+				draw_rect(Rect2(Vector2(tile) * TILE_SIZE, Vector2.ONE * TILE_SIZE), Color("151619"), true)
+				draw_line(Vector2(tile) * TILE_SIZE + Vector2(8, 8), Vector2(tile + Vector2i.ONE) * TILE_SIZE - Vector2(8, 8), Color("3a3c40"), 1.2)
+				draw_line(Vector2(tile.x * TILE_SIZE + TILE_SIZE - 8, tile.y * TILE_SIZE + 8), Vector2(tile.x * TILE_SIZE + 8, tile.y * TILE_SIZE + TILE_SIZE - 8), Color("3a3c40"), 1.2)
+	var player_world := player.position
+	draw_circle(player_world, 10.0, Color("b08a4d"))
+	draw_circle(player_world, 6.0, Color("30261e"))
