@@ -6,15 +6,16 @@ class_name PlayerController
 
 const TILE_SIZE: float = 48.0
 const PARTY_HUD_SCENE := preload("res://scenes/PartyHUD.tscn")
+const LOCATION_COMPASS_HUD_SCENE := preload("res://scenes/LocationCompassHUD.tscn")
 
 var grid_position: Vector2i = Vector2i(3, 3)
 var is_moving: bool = false
 var can_receive_movement_input: bool = true
 
 func _ready() -> void:
-	call_deferred("_install_party_hud")
+	call_deferred("_install_huds")
 
-func _install_party_hud() -> void:
+func _install_huds() -> void:
 	var scene_root := get_tree().current_scene
 	if scene_root == null:
 		return
@@ -24,11 +25,16 @@ func _install_party_hud() -> void:
 	var old_death_overlay := scene_root.get_node_or_null("DeathOverlay") as CanvasLayer
 	if old_death_overlay != null:
 		old_death_overlay.visible = false
-	if scene_root.get_node_or_null("PartyHUD") != null:
-		return
-	var hud := PARTY_HUD_SCENE.instantiate()
-	hud.name = "PartyHUD"
-	scene_root.add_child(hud)
+
+	if scene_root.get_node_or_null("PartyHUD") == null:
+		var party_hud := PARTY_HUD_SCENE.instantiate()
+		party_hud.name = "PartyHUD"
+		scene_root.add_child(party_hud)
+
+	if scene_root.get_node_or_null("LocationCompassHUD") == null:
+		var location_hud := LOCATION_COMPASS_HUD_SCENE.instantiate()
+		location_hud.name = "LocationCompassHUD"
+		scene_root.add_child(location_hud)
 
 func set_alive(value: bool) -> void:
 	# Only transition the presentation when the life state actually changes.
