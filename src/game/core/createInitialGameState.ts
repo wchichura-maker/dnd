@@ -5,6 +5,7 @@ import { playerCharacter } from "../Character";
 import { orc } from "../Combat";
 import { createTurn } from "../Turn";
 import { createWorldClock } from "../time/WorldClock";
+import { createDevelopmentQuestState } from "../quests/QuestSystem";
 
 export function createInitialGameState(): GameState {
   // Prototype exploration area: 120 x 80 squares.
@@ -113,6 +114,8 @@ export function createInitialGameState(): GameState {
         nonlethalDamage: 0
       }
     },
+
+    quests: createDevelopmentQuestState(),
 
     logs: [
       "Exploração iniciada.",
