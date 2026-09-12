@@ -8,6 +8,8 @@ class_name LocationCompassHUD
 ## Clock display follows the authoritative world clock.
 
 const PLAYER_ID := "player-01"
+const WORLD_DAY_SECONDS := 24 * 60 * 60
+const MAX_CONNECTION_ATTEMPTS := 30
 
 @onready var location_label: Label = $Root/LocationLabel
 @onready var minimap: MinimapRenderer = $Root/Minimap
@@ -19,20 +21,33 @@ var latest_state: Dictionary = {}
 var last_player_grid := Vector2i(-999999, -999999)
 var last_world_seconds := -1
 var last_location := ""
+var connection_attempts := 0
 
 func _ready() -> void:
 	layer = 25
 	call_deferred("_connect_game_core")
 
 func _connect_game_core() -> void:
+	if is_instance_valid(game_core):
+		return
+
 	var scene_root := get_tree().current_scene
 	if scene_root == null:
 		return
-	game_core = scene_root.get_node_or_null("GameCoreClient")
+
+	game_core = scene_root.find_child("GameCoreClient", true, false)
 	if game_core == null or not game_core.has_signal("state_received"):
+		connection_attempts += 1
+		if connection_attempts < MAX_CONNECTION_ATTEMPTS:
+			call_deferred("_connect_game_core")
 		return
+		game_core = null
+		return
+
+	connection_attempts = 0
 	if not game_core.state_received.is_connected(_on_state_received):
 		game_core.state_received.connect(_on_state_received)
+
 	var cached_variant: Variant = game_core.get("latest_snapshot")
 	if cached_variant is Dictionary and not (cached_variant as Dictionary).is_empty():
 		_on_state_received(cached_variant as Dictionary)
@@ -89,7 +104,7 @@ func _world_seconds(state: Dictionary) -> int:
 	return maxi(0, int((clock_variant as Dictionary).get("totalSeconds", 0)))
 
 func _format_world_time(total_seconds: int) -> String:
-	var normalized := posmod(total_seconds, WorldCoordinateSystem.DAY_SECONDS)
-	var hour := normalized / 3600
-	var minute := (normalized % 3600) / 60
+	var normalized: int = posmod(total_seconds, WORLD_DAY_SECONDS)
+	var hour: int = floori(float(normalized) / 3600.0)
+	var minute: int = floori(float(normalized % 3600) / 60.0)
 	return "%02d:%02d" % [hour, minute]
