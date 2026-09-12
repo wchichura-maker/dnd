@@ -1,3 +1,5 @@
+import type { DiceRoll } from "../Dice";
+
 export type ActionResult = {
   success: boolean;
   message: string;
@@ -13,9 +15,13 @@ export type ActionResult = {
     targetDied?: boolean;
     combatEnded?: boolean;
     combatEndReason?: string;
-    damageRoll?: number;
+    damageRoll?: number | DiceRoll;
     fortitudeRoll?: number;
     fortitude?: { bonus: number; total: number; dc: number; success: boolean };
+    phase?: string;
+    interaction?: string;
+    response?: string;
+    resolution?: string;
     socialCheck?: {
       skill: "BLUFF" | "DIPLOMACY" | "INTIMIDATE";
       roll: number;
@@ -54,5 +60,6 @@ export type ActionResult = {
       damage: number;
       damageMultiplier: number;
     };
+    [key: string]: unknown;
   };
 };
