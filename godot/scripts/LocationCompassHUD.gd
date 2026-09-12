@@ -3,9 +3,9 @@ class_name LocationCompassHUD
 
 ## Presentation-only location/navigation HUD.
 ## Reads authoritative snapshot data; it never advances time or changes world state.
+## Position and size are intentionally owned by the Godot scene editor.
 
 const PLAYER_ID := "player-01"
-const SAFE_MARGIN := 18.0
 
 @onready var location_label: Label = $Root/LocationLabel
 @onready var minimap: MinimapRenderer = $Root/Minimap
@@ -21,8 +21,6 @@ var last_location := ""
 func _ready() -> void:
 	layer = 25
 	call_deferred("_connect_game_core")
-	get_viewport().size_changed.connect(_layout)
-	_layout()
 
 func _connect_game_core() -> void:
 	var scene_root := get_tree().current_scene
@@ -85,21 +83,3 @@ func _format_world_time(total_seconds: int) -> String:
 	var hour := normalized / 3600
 	var minute := (normalized % 3600) / 60
 	return "%02d:%02d" % [hour, minute]
-
-func _layout() -> void:
-	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	var root: Control = $Root as Control
-	var width := 190.0
-	var minimap_size := 160.0
-	root.position = Vector2(viewport_size.x - width - SAFE_MARGIN, SAFE_MARGIN)
-	root.size = Vector2(width, 214.0)
-	$Root/LocationLabel.position = Vector2.ZERO
-	$Root/LocationLabel.size = Vector2(width, 20.0)
-	$Root/Minimap.position = Vector2((width - minimap_size) * 0.5, 22.0)
-	$Root/Minimap.size = Vector2.ONE * minimap_size
-	$Root/Frame.position = $Root/Minimap.position
-	$Root/Frame.size = $Root/Minimap.size
-	$Root/CoordinatesLabel.position = Vector2(0, 184)
-	$Root/CoordinatesLabel.size = Vector2(width, 14.0)
-	$Root/TimeLabel.position = Vector2(0, 199)
-	$Root/TimeLabel.size = Vector2(width, 14.0)
