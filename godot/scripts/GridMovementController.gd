@@ -2,8 +2,8 @@ extends Node2D
 class_name GridMovementController
 
 ## Input/presentation only. Rules remain authoritative in Game Core.
+## Grid conversion is shared with the navigation HUD through WorldCoordinateSystem.
 
-const TILE_SIZE: float = 48.0
 const STEP_DURATION: float = 0.14
 
 var player: PlayerController
@@ -46,7 +46,7 @@ func select_destination(world_position: Vector2) -> void:
 	})
 
 func world_to_grid(world_position: Vector2) -> Vector2i:
-	return Vector2i(floori(world_position.x / TILE_SIZE), floori(world_position.y / TILE_SIZE))
+	return WorldCoordinateSystem.world_to_grid(world_position)
 
 func _on_state_received(snapshot: Dictionary) -> void:
 	five_foot_step_mode = false
