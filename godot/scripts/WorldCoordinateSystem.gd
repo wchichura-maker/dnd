@@ -6,6 +6,7 @@ class_name WorldCoordinateSystem
 
 const TILE_SIZE: float = 48.0
 const FEET_PER_CELL: int = 5
+const DAY_SECONDS: int = 24 * 60 * 60
 
 static func grid_to_world(grid: Vector2i) -> Vector2:
 	return Vector2(grid) * TILE_SIZE + Vector2.ONE * (TILE_SIZE * 0.5)
