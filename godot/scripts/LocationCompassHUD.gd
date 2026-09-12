@@ -87,8 +87,8 @@ func _format_world_time(total_seconds: int) -> String:
 	return "%02d:%02d" % [hour, minute]
 
 func _layout() -> void:
-	var viewport_size := get_viewport_rect().size
-	var root := $Root as Control
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	var root: Control = $Root as Control
 	var width := 190.0
 	var minimap_size := 160.0
 	root.position = Vector2(viewport_size.x - width - SAFE_MARGIN, SAFE_MARGIN)
