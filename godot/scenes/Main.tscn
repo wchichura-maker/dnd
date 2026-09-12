@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://4g0umbq5j4hu" path="res://scripts/PlayerController.gd" id="2_player"]
 [ext_resource type="Script" uid="uid://b87jwdw7wihda" path="res://scripts/GridMovementController.gd" id="3_movement"]
 [ext_resource type="Script" uid="uid://b3dq5utud2yf2" path="res://scripts/CameraController.gd" id="4_camera"]
+[ext_resource type="PackedScene" path="res://scenes/QuestTracker.tscn" id="5_quest_tracker"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.188, 0.149, 0.118, 0.86)
@@ -174,6 +175,7 @@ Mapa  •  Dia"
 horizontal_alignment = 2
 
 [node name="QuestPanel" type="PanelContainer" parent="CombatHUD" unique_id=1799875006]
+visible = false
 offset_left = 1010.0
 offset_top = 130.0
 offset_right = 1262.0
@@ -197,6 +199,12 @@ text = "OBJETIVOS
 
 REGISTRO
 Acompanhe acontecimentos importantes."
+
+[node name="QuestTracker" parent="CombatHUD" instance=ExtResource("5_quest_tracker")]
+offset_left = 1010.0
+offset_top = 130.0
+offset_right = 1500.0
+offset_bottom = 930.0
 
 [node name="ActionLogPanel" type="PanelContainer" parent="CombatHUD" unique_id=196139260]
 offset_left = 18.0
