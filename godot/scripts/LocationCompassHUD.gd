@@ -4,6 +4,8 @@ class_name LocationCompassHUD
 ## Presentation-only location/navigation HUD.
 ## Reads authoritative snapshot data; it never advances time or changes world state.
 ## Position and size are intentionally owned by the Godot scene editor.
+## Coordinate display follows the authoritative world grid.
+## Clock display follows the authoritative world clock.
 
 const PLAYER_ID := "player-01"
 
@@ -48,7 +50,7 @@ func _on_state_received(snapshot: Dictionary) -> void:
 
 	if player_grid != last_player_grid:
 		last_player_grid = player_grid
-		coordinates_label.text = "X: %d ; Y: %d" % [player_grid.x, player_grid.y]
+		coordinates_label.text = _format_grid_coordinates(player_grid)
 
 	if world_seconds != last_world_seconds:
 		last_world_seconds = world_seconds
@@ -61,15 +63,24 @@ func _on_state_received(snapshot: Dictionary) -> void:
 	minimap.apply_snapshot(snapshot)
 
 func _player_grid(state: Dictionary) -> Vector2i:
-	for entity_variant in state.get("entities", []) as Array:
+	var entities_variant: Variant = state.get("entities", [])
+	if not entities_variant is Array:
+		return Vector2i.ZERO
+	for entity_variant in entities_variant as Array:
 		if not entity_variant is Dictionary:
 			continue
 		var entity := entity_variant as Dictionary
 		if str(entity.get("id", "")) != PLAYER_ID:
 			continue
-		var position := entity.get("position", {}) as Dictionary
+		var position_variant: Variant = entity.get("position", {})
+		if not position_variant is Dictionary:
+			return Vector2i.ZERO
+		var position := position_variant as Dictionary
 		return Vector2i(int(position.get("x", 0)), int(position.get("y", 0)))
 	return Vector2i.ZERO
+
+func _format_grid_coordinates(grid: Vector2i) -> String:
+	return "X: %d ; Y: %d" % [grid.x, grid.y]
 
 func _world_seconds(state: Dictionary) -> int:
 	var clock_variant: Variant = state.get("worldClock", {})
@@ -78,7 +89,7 @@ func _world_seconds(state: Dictionary) -> int:
 	return maxi(0, int((clock_variant as Dictionary).get("totalSeconds", 0)))
 
 func _format_world_time(total_seconds: int) -> String:
-	var seconds_in_day := 24 * 60 * 60
+	var seconds_in_day := WorldCoordinateSystem.DAY_SECONDS if "DAY_SECONDS" in WorldCoordinateSystem else 86400
 	var normalized := posmod(total_seconds, seconds_in_day)
 	var hour := normalized / 3600
 	var minute := (normalized % 3600) / 60
