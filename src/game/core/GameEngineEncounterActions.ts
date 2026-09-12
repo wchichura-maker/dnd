@@ -5,18 +5,34 @@ import { canUseFullRoundAction, canUseStandardAction, consumeFullRoundAction, co
 import { rollDie } from "../Dice";
 import { isDiplomacyEndCombatResult, resolveBluff, resolveDiplomacy, resolveIntimidate, resolveNegotiation } from "../rules/SocialRules";
 import { resolveEncounterResponse } from "../rules/EncounterResolutionRules";
+import { updateQuestStateFromAction } from "../quests/QuestSystem";
 import { GameEngineEncounterWithFlee } from "./GameEngineEncounterWithFlee";
 
 export class GameEngineEncounterActions extends GameEngineEncounterWithFlee {
   override executeAction(action: GameAction): ActionResult {
-    if (action.type === "TALK") return this.executeTalk(action);
-    if (action.type === "OBSERVE") return this.executeObserve(action);
-    if (["BLUFF", "DIPLOMACY", "INTIMIDATE", "NEGOTIATE", "ARREST", "SURRENDER"].includes(action.type) && this.isEncounterMode()) return this.executeEncounterInteraction(action);
-    if (action.type === "ATTACK" && this.isEncounterMode()) {
-      const combat = this.startCombat(this.getState().encounter?.participantIds);
-      if (!combat.success) return combat;
+    const before = this.getState();
+    let result: ActionResult;
+
+    if (action.type === "TALK") {
+      result = this.executeTalk(action);
+    } else if (action.type === "OBSERVE") {
+      result = this.executeObserve(action);
+    } else if (["BLUFF", "DIPLOMACY", "INTIMIDATE", "NEGOTIATE", "ARREST", "SURRENDER"].includes(action.type) && this.isEncounterMode()) {
+      result = this.executeEncounterInteraction(action);
+    } else {
+      if (action.type === "ATTACK" && this.isEncounterMode()) {
+        const combat = this.startCombat(this.getState().encounter?.participantIds);
+        if (!combat.success) return combat;
+      }
+      result = super.executeAction(action);
     }
-    return super.executeAction(action);
+
+    const after = this.getState();
+    const quests = updateQuestStateFromAction(before.quests, before, after, action, result);
+    if (quests !== before.quests) {
+      this.setState({ ...this.getState(), quests });
+    }
+    return result;
   }
 
   private executeEncounterInteraction(action: GameAction): ActionResult {
