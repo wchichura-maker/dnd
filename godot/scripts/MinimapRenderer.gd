@@ -17,8 +17,8 @@ const PLAYER_COLOR := Color("e3c46b")
 const MARKER_OUTLINE := Color("2a211b")
 
 var latest_state: Dictionary = {}
-var visible_tiles: Dictionary[Vector2i, bool] = {}
-var explored_tiles: Dictionary[Vector2i, bool] = {}
+var visible_tiles: Dictionary = {}
+var explored_tiles: Dictionary = {}
 var player_grid: Vector2i = Vector2i.ZERO
 var player_direction: int = CharacterAnimationState.Direction.SOUTH
 
@@ -103,8 +103,8 @@ func _draw() -> void:
 			if delta.length() > float(radius_cells) + 0.75:
 				continue
 			var tile_color := _tile_color(grid)
-			var position := center + delta * cell - Vector2.ONE * cell * 0.5
-			draw_rect(Rect2(position, Vector2.ONE * cell), tile_color, true)
+			var tile_position := center + delta * cell - Vector2.ONE * cell * 0.5
+			draw_rect(Rect2(tile_position, Vector2.ONE * cell), tile_color, true)
 
 	_draw_player_marker(center, map_radius)
 
